@@ -1,3 +1,25 @@
+"use client";
+import { useEffect, useState } from "react";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
+
 const steps = [
   { num: "01", title: "Strategy Call", desc: "We learn your business, ideal client, and goals. We map the system to your offer.", last: false },
   { num: "02", title: "Build & Setup", desc: "We handle everything — scripts, tech, AI agent, integrations. You review and approve.", last: false },
@@ -7,12 +29,13 @@ const steps = [
 ];
 
 export default function Process() {
+  const cms = useCMS("home");
   return (
     <section id="how" style={{ background: "#111111", padding: "100px 48px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div className="reveal">
-          <div className="section-label">Simple Process</div>
-          <h2 className="section-headline">WE&apos;RE UP AND RUNNING<br />IN DAYS — NOT MONTHS.</h2>
+          <div className="section-label">{cms("process","eyebrow","Simple Process")}</div>
+          <h2 className="section-headline">{cms("process","headline","WE'RE UP AND RUNNING\nIN DAYS — NOT MONTHS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}</h2>
         </div>
         <div className="reveal" style={{
           display: "grid", gridTemplateColumns: "repeat(5, 1fr)",

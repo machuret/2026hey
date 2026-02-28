@@ -1,6 +1,27 @@
 "use client";
+import { useEffect, useState } from "react";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
 
 export default function Hero() {
+  const cms = useCMS("home");
   return (
     <section style={{
       minHeight: "100vh",
@@ -28,7 +49,7 @@ export default function Hero() {
           textTransform: "uppercase", color: "#FF5C00", marginBottom: 24,
         }}>
           <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />
-          Done-For-You Lead Generation
+          {cms("hero","eyebrow","Done-For-You Lead Generation")}
         </div>
 
         <h1 className="anim-fade-up-1" style={{
@@ -39,22 +60,19 @@ export default function Hero() {
           color: "#F5F2ED",
           marginBottom: 32,
         }}>
-          YOUR NEXT<br />
-          10 CLIENTS<br />
-          ARE IN A<br />
-          <span style={{ color: "#FF5C00" }}>VOICEMAIL.</span>
+          {cms("hero","headline","YOUR NEXT\n10 CLIENTS\nARE IN A\nVOICEMAIL.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h1>
 
         <p className="anim-fade-up-2" style={{
           fontSize: 18, lineHeight: 1.6, color: "#888880",
           maxWidth: 480, marginBottom: 48, fontWeight: 300,
         }}>
-          We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with appointment-ready prospects — without you lifting a finger.
+          {cms("hero","subheadline","We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with appointment-ready prospects — without you lifting a finger.")}
         </p>
 
         <div className="anim-fade-up-3" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <a href="#contact" className="btn-primary">Get More Leads Now →</a>
-          <a href="#how" className="btn-secondary">See How It Works</a>
+          <a href="#contact" className="btn-primary">{cms("hero","cta_primary","Get More Leads Now →")}</a>
+          <a href="#how" className="btn-secondary">{cms("hero","cta_secondary","See How It Works")}</a>
         </div>
       </div>
 

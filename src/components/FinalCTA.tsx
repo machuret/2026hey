@@ -1,5 +1,24 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
 
 const inputStyle: React.CSSProperties = {
   width: "100%", background: "rgba(255,255,255,0.05)",
@@ -10,6 +29,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function FinalCTA() {
+  const cms = useCMS("home");
   const [form, setForm] = useState({ name: "", email: "", whatsapp: "", business_type: "" });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -46,17 +66,17 @@ export default function FinalCTA() {
         pointerEvents: "none",
       }} />
       <div className="reveal" style={{ position: "relative", zIndex: 1 }}>
-        <div className="section-label" style={{ justifyContent: "center" }}>Ready?</div>
+        <div className="section-label" style={{ justifyContent: "center" }}>{cms("final_cta","eyebrow","Ready?")}</div>
         <h2 style={{
           fontFamily: "'Bebas Neue',sans-serif",
           fontSize: "clamp(56px, 8vw, 120px)",
           lineHeight: 0.9, color: "#F5F2ED",
           marginBottom: 24, letterSpacing: 1,
         }}>
-          STOP WAITING<br />FOR <span style={{ color: "#FF5C00" }}>LEADS.</span><br />START GETTING THEM.
+          {cms("final_cta","headline","STOP WAITING\nFOR LEADS.\nSTART GETTING THEM.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h2>
         <p style={{ fontSize: 18, color: "#888880", maxWidth: 560, margin: "0 auto 48px", lineHeight: 1.6, fontWeight: 300 }}>
-          Book a free strategy call and we&apos;ll show you exactly how to put this system to work — in days, not months. No pressure. No hard sell.
+          {cms("final_cta","subheadline","Book a free strategy call and we'll show you exactly how to put this system to work — in days, not months. No pressure. No hard sell.")}
         </p>
         <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 60 }}>
           <a href="#" className="btn-primary">Book My Free Strategy Call →</a>

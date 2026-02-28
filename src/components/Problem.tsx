@@ -1,3 +1,25 @@
+"use client";
+import { useEffect, useState } from "react";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
+
 const pills = [
   { icon: "📞", title: "Cold Calling", desc: "80% of calls go straight to voicemail. Nobody picks up unknown numbers anymore." },
   { icon: "💸", title: "Paid Ads", desc: "Rising CPCs, blind audiences, and inconsistent returns are draining budgets fast." },
@@ -6,16 +28,17 @@ const pills = [
 ];
 
 export default function Problem() {
+  const cms = useCMS("home");
   return (
     <section className="reveal" style={{ background: "#111111", padding: "100px 48px", position: "relative", overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center", maxWidth: 1200, margin: "0 auto" }}>
         <div>
-          <div className="section-label">The Problem</div>
-          <h2 className="section-headline">COLD CALLS GET IGNORED.<br />ADS ARE EXPENSIVE.<br />EMAIL IS DEAD.</h2>
+          <div className="section-label">{cms("problem","eyebrow","The Problem")}</div>
+          <h2 className="section-headline">{cms("problem","headline","COLD CALLS GET IGNORED.\nADS ARE EXPENSIVE.\nEMAIL IS DEAD.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}</h2>
           <div style={{ fontSize: 17, lineHeight: 1.8, color: "#888880", fontWeight: 300 }}>
-            <p style={{ marginBottom: 20 }}>You&apos;re running a business. You don&apos;t have time to chase prospects who don&apos;t pick up, scroll past your ads, or delete your emails without reading them.</p>
-            <p style={{ marginBottom: 20 }}><strong style={{ color: "#F5F2ED", fontWeight: 500 }}>The old playbook is broken.</strong> Your competitors are still using it. That means right now — while you&apos;re reading this — there&apos;s a gap wide open for businesses willing to reach people the right way.</p>
-            <p>That&apos;s exactly what we built <strong style={{ color: "#FF5C00", fontWeight: 500 }}>Hey More Leads</strong> to do.</p>
+            <p style={{ marginBottom: 20 }}>{cms("problem","body_1","You're running a business. You don't have time to chase prospects who don't pick up, scroll past your ads, or delete your emails without reading them.")}</p>
+            <p style={{ marginBottom: 20 }}>{cms("problem","body_2","The old playbook is broken. Your competitors are still using it. That means right now — while you're reading this — there's a gap wide open for businesses willing to reach people the right way.")}</p>
+            <p>{cms("problem","body_3","That's exactly what we built Hey More Leads to do.")}</p>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

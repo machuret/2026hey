@@ -209,3 +209,34 @@ insert into page_content (page, section, field, value) values
 ('case-studies','final_cta','subheadline','Book a strategy call and we''ll show you what we''d build for your specific business and what results to realistically expect.')
 
 on conflict (page, section, field) do update set value = excluded.value;
+
+-- ══════════════════════════════════════════════════════
+-- SEED: HOME PAGE COMPONENTS
+-- ══════════════════════════════════════════════════════
+insert into page_content (page, section, field, value) values
+('home','hero','eyebrow','Done-For-You Lead Generation'),
+('home','hero','headline','YOUR NEXT\n10 CLIENTS\nARE IN A\nVOICEMAIL.'),
+('home','hero','subheadline','We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with appointment-ready prospects — without you lifting a finger.'),
+('home','hero','cta_primary','Get More Leads Now →'),
+('home','hero','cta_secondary','See How It Works'),
+('home','problem','eyebrow','The Problem'),
+('home','problem','headline','COLD CALLS GET IGNORED.\nADS ARE EXPENSIVE.\nEMAIL IS DEAD.'),
+('home','problem','body_1','You''re running a business. You don''t have time to chase prospects who don''t pick up, scroll past your ads, or delete your emails without reading them.'),
+('home','problem','body_2','The old playbook is broken. Your competitors are still using it. That means right now — while you''re reading this — there''s a gap wide open for businesses willing to reach people the right way.'),
+('home','problem','body_3','That''s exactly what we built Hey More Leads to do.'),
+('home','services','eyebrow','Our System'),
+('home','services','headline','ONE SYSTEM.\nTWO POWERFUL TOOLS.'),
+('home','services','subheadline','We handle everything — setup, scripting, targeting, execution, optimization. Your only job is showing up for the appointments we send you.'),
+('home','services','rvm_title','WE DROP YOUR VOICE STRAIGHT INTO THEIR INBOX.'),
+('home','services','rvm_body','Your message lands directly in their voicemail — without their phone ever ringing. No interruption. No friction. They listen when they''re ready, already hearing your voice, your offer, your business.'),
+('home','services','rvm_result','THE RESULT: Warm prospects calling YOU back — already familiar with your name and offer.'),
+('home','services','wa_title','YOUR AI AGENT WORKS LEADS 24/7 SO YOU DON''T HAVE TO.'),
+('home','services','wa_body','WhatsApp has a 98% message open rate. Our AI agent engages leads the moment they respond, asks the right qualifying questions, filters out the tire-kickers, and delivers only serious, appointment-ready prospects to you.'),
+('home','services','wa_result','THE RESULT: A qualification machine that hands you pre-vetted, motivated prospects ready to buy.'),
+('home','process','eyebrow','Simple Process'),
+('home','process','headline','WE''RE UP AND RUNNING\nIN DAYS — NOT MONTHS.'),
+('home','final_cta','eyebrow','Ready?'),
+('home','final_cta','headline','STOP WAITING\nFOR LEADS.\nSTART GETTING THEM.'),
+('home','final_cta','subheadline','Book a free strategy call and we''ll show you exactly how to put this system to work — in days, not months. No pressure. No hard sell.')
+
+on conflict (page, section, field) do update set value = excluded.value;
