@@ -3,8 +3,8 @@ import { useState } from "react";
 
 const links: [string, string, string][] = [
   ["/#services", "Services", ""],
-  ["/#how", "How It Works", ""],
-  ["/#packages", "Packages", ""],
+  ["/packages", "Packages", "packages"],
+  ["/case-studies", "Case Studies", "case-studies"],
   ["/about", "About", "about"],
 ];
 
