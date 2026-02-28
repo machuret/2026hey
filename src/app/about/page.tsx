@@ -72,49 +72,32 @@ export default function AboutPage() {
 
       {/* PAGE HERO */}
       <section style={{
-        minHeight: "70vh", display: "flex", flexDirection: "column",
-        justifyContent: "flex-end", padding: "140px 48px 80px",
+        minHeight: "72vh", display: "flex", flexDirection: "column",
+        justifyContent: "flex-end", padding: "140px 64px 88px",
         position: "relative", overflow: "hidden",
         borderBottom: "1px solid #222222", background: "#0A0A0A",
       }}>
-        {/* Background watermark */}
-        <div style={{
-          position: "absolute", fontFamily: "'Bebas Neue',sans-serif",
-          fontSize: "clamp(180px,22vw,340px)", color: "rgba(255,92,0,0.04)",
-          top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-          whiteSpace: "nowrap", pointerEvents: "none", letterSpacing: 8,
-          userSelect: "none",
-        }}>ABOUT</div>
+        {/* Watermark */}
+        <div style={{ position: "absolute", fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(180px,22vw,340px)", color: "rgba(255,92,0,0.03)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", whiteSpace: "nowrap", pointerEvents: "none", letterSpacing: 8, userSelect: "none" }}>ABOUT</div>
         {/* Glow */}
-        <div style={{
-          position: "absolute", left: -200, bottom: -100,
-          width: 600, height: 600,
-          background: "radial-gradient(circle, rgba(255,92,0,0.08) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }} />
+        <div style={{ position: "absolute", left: -200, bottom: -100, width: 700, height: 700, background: "radial-gradient(circle, rgba(255,92,0,0.09) 0%, transparent 68%)", pointerEvents: "none" }} />
+        {/* Grid lines */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,92,0,0.04) 1px, transparent 1px)", backgroundSize: "100% 80px", maskImage: "radial-gradient(ellipse 90% 90% at 30% 60%, black 40%, transparent 100%)" }} />
 
-        <div className="anim-fade-up" style={{
-          display: "inline-flex", alignItems: "center", gap: 10,
-          fontSize: 12, fontWeight: 600, letterSpacing: 2,
-          textTransform: "uppercase", color: "#FF5C00", marginBottom: 24,
-        }}>
-          <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />
+        <div className="anim-fade-up" style={{ display: "inline-flex", alignItems: "center", gap: 14, fontSize: 12, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase", color: "#FF5C00", marginBottom: 28 }}>
+          <span style={{ display: "block", width: 40, height: 1, background: "#FF5C00", opacity: 0.6 }} />
           {cms("hero","eyebrow","Who We Are")}
+          <span style={{ display: "block", width: 40, height: 1, background: "#FF5C00", opacity: 0.6 }} />
         </div>
 
-        <h1 className="anim-fade-up-1" style={{
-          fontFamily: "'Bebas Neue',sans-serif",
-          fontSize: "clamp(56px,9vw,130px)",
-          lineHeight: 0.88, letterSpacing: 1,
-          color: "#F5F2ED", maxWidth: 900,
-        }}>
+        <h1 className="anim-fade-up-1" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(60px,9vw,136px)", lineHeight: 0.88, letterSpacing: 1.5, color: "#F5F2ED", maxWidth: 1000, marginBottom: 24 }}>
           {cms("hero","headline","WE BUILT THIS BECAUSE\nTHE OLD WAY\nSTOPPED WORKING.").split("\n").map((l,i,a) => <span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h1>
 
-        <p className="anim-fade-up-2" style={{
-          fontSize: 18, color: "#888880", lineHeight: 1.7,
-          fontWeight: 300, maxWidth: 560, marginTop: 32,
-        }}>
+        {/* Accent bar */}
+        <div style={{ width: 80, height: 3, background: "#FF5C00", opacity: 0.5, marginBottom: 24 }} />
+
+        <p className="anim-fade-up-2" style={{ fontSize: 18, color: "#888880", lineHeight: 1.7, fontWeight: 300, maxWidth: 580 }}>
           {cms("hero","subheadline","Hey More Leads is a done-for-you lead generation system built by a small team who got tired of watching great businesses lose to inferior ones — simply because their outreach was broken.")}
         </p>
       </section>

@@ -109,20 +109,24 @@ export default function ContactPage() {
 
       {/* ── HERO ── */}
       <section style={{
-        minHeight: "55vh", display: "flex", flexDirection: "column", justifyContent: "flex-end",
-        padding: "140px 48px 70px", position: "relative", overflow: "hidden",
+        minHeight: "65vh", display: "flex", flexDirection: "column", justifyContent: "flex-end",
+        padding: "140px 64px 88px", position: "relative", overflow: "hidden",
         background: DARK, borderBottom: `1px solid ${DARK3}`,
       }}>
-        <div style={{ position: "absolute", fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(160px,22vw,340px)", color: "rgba(255,92,0,0.04)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", whiteSpace: "nowrap", pointerEvents: "none", letterSpacing: 8, userSelect: "none" }}>TALK</div>
-        <div style={{ position: "absolute", right: -120, top: "50%", transform: "translateY(-50%)", width: 600, height: 600, background: "radial-gradient(circle, rgba(255,92,0,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(160px,22vw,340px)", color: "rgba(255,92,0,0.03)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", whiteSpace: "nowrap", pointerEvents: "none", letterSpacing: 8, userSelect: "none" }}>TALK</div>
+        <div style={{ position: "absolute", right: -120, top: "50%", transform: "translateY(-50%)", width: 700, height: 700, background: "radial-gradient(circle, rgba(255,92,0,0.09) 0%, transparent 68%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,92,0,0.04) 1px, transparent 1px)", backgroundSize: "100% 80px", maskImage: "radial-gradient(ellipse 90% 90% at 70% 50%, black 40%, transparent 100%)" }} />
 
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: O, marginBottom: 24 }}>
-          <span style={{ display: "block", width: 32, height: 2, background: O }} />{cms("hero","eyebrow","Free Strategy Call")}
+        <div className="anim-fade-up" style={{ display: "inline-flex", alignItems: "center", gap: 14, fontSize: 12, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase", color: O, marginBottom: 28 }}>
+          <span style={{ display: "block", width: 40, height: 1, background: O, opacity: 0.6 }} />
+          {cms("hero","eyebrow","Free Strategy Call")}
+          <span style={{ display: "block", width: 40, height: 1, background: O, opacity: 0.6 }} />
         </div>
-        <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px,8vw,115px)", lineHeight: 0.88, letterSpacing: 1, color: WHITE, maxWidth: 900 }}>
+        <h1 className="anim-fade-up-1" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(60px,8vw,124px)", lineHeight: 0.88, letterSpacing: 1.5, color: WHITE, maxWidth: 900, marginBottom: 24 }}>
           {cms("hero","headline","LET'S TALK ABOUT\nGETTING YOU MORE LEADS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h1>
-        <p style={{ fontSize: 18, color: MUTED, lineHeight: 1.7, fontWeight: 300, maxWidth: 600, marginTop: 28 }}>
+        <div style={{ width: 80, height: 3, background: O, opacity: 0.5, marginBottom: 24 }} />
+        <p className="anim-fade-up-2" style={{ fontSize: 18, color: MUTED, lineHeight: 1.7, fontWeight: 300, maxWidth: 600 }}>
           {cms("hero","subheadline","No pitch. No pressure. Just a straight conversation about your business, your goals, and whether our system is the right fit. If it is — we'll show you exactly what we'd build and what results to expect.")}
         </p>
       </section>
