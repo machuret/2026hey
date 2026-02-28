@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "2026hey",
-  description: "Next.js + Tailwind starter",
+  title: "Hey More Leads — Ringless Voicemail & AI WhatsApp Lead Generation",
+  description: "Done-For-You Lead Generation. No Cold Calls. No Ad Spend. We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with qualified leads.",
 };
 
 export default function RootLayout({

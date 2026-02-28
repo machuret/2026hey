@@ -1,8 +1,31 @@
+import Navbar from "@/components/Navbar";
+import Hero from "@/components/Hero";
+import Problem from "@/components/Problem";
+import Services from "@/components/Services";
+import Combo from "@/components/Combo";
+import Pricing from "@/components/Pricing";
+import Process from "@/components/Process";
+import WhoItsFor from "@/components/WhoItsFor";
+import Testimonials from "@/components/Testimonials";
+import FAQ from "@/components/FAQ";
+import FinalCTA from "@/components/FinalCTA";
+import Footer from "@/components/Footer";
+
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <h1 className="text-4xl font-bold text-gray-900">Hello from 2026hey</h1>
-      <p className="mt-3 text-gray-500">Next.js + Tailwind — ready to build.</p>
+    <main className="bg-black">
+      <Navbar />
+      <Hero />
+      <Problem />
+      <Services />
+      <Combo />
+      <Pricing />
+      <Process />
+      <WhoItsFor />
+      <Testimonials />
+      <FAQ />
+      <FinalCTA />
+      <Footer />
     </main>
   );
 }
