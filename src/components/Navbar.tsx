@@ -29,6 +29,13 @@ function pageFromHref(href: string) {
 export default function Navbar({ activePage = "" }: { activePage?: string }) {
   const [open, setOpen] = useState(false);
   const [navItems, setNavItems] = useState<NavItem[]>(FALLBACK);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/nav")
@@ -46,8 +53,11 @@ export default function Navbar({ activePage = "" }: { activePage?: string }) {
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
       padding: "20px 48px", display: "flex", alignItems: "center",
       justifyContent: "space-between",
-      background: "rgba(10,10,10,0.85)", backdropFilter: "blur(12px)",
+      background: scrolled ? "rgba(10,10,10,0.97)" : "rgba(10,10,10,0.85)",
+      backdropFilter: "blur(12px)",
       borderBottom: "1px solid rgba(255,92,0,0.1)",
+      boxShadow: scrolled ? "0 4px 32px rgba(0,0,0,0.6)" : "none",
+      transition: "background 0.3s ease, box-shadow 0.3s ease",
     }}>
       <a href="/" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 2, color: "#F5F2ED", textDecoration: "none" }}>
         HEY<span style={{ color: "#FF5C00" }}>.</span>MORE LEADS

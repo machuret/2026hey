@@ -52,7 +52,7 @@ body::before {
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
   display: inline-block;
 }
-.btn-primary:hover { background: var(--orange-hot); transform: translateY(-2px); }
+.btn-primary:hover { background: var(--orange-hot); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,92,0,0.25); }
 
 .btn-secondary {
   background: transparent;
@@ -69,7 +69,7 @@ body::before {
   transition: all 0.2s;
   display: inline-block;
 }
-.btn-secondary:hover { border-color: var(--orange); color: var(--orange); }
+.btn-secondary:hover { border-color: var(--orange); color: var(--orange); transform: translateY(-1px); }
 
 /* SECTION LABEL */
 .section-label {
@@ -107,6 +107,11 @@ body::before {
   font-weight: 300;
   max-width: 640px;
   margin-bottom: 48px;
+}
+
+/* CMS CONTENT FADE-IN — prevents flicker when CMS value loads */
+.cms-ready {
+  animation: fadeIn 0.35s ease both;
 }
 
 /* SCROLL REVEAL */
@@ -164,4 +169,20 @@ body::before {
 .faq-item-open .faq-answer { max-height: 200px; padding-top: 16px; }
 .faq-toggle { transition: transform 0.3s; }
 .faq-item-open .faq-toggle { transform: rotate(45deg); }
+
+/* SELECTION */
+::selection { background: rgba(255,92,0,0.25); color: #F5F2ED; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #FF5C00; }
+
+/* FOCUS — keyboard accessibility */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid rgba(255,92,0,0.6);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
 
