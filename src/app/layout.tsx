@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { getSeoMeta } from "@/lib/getSeoMeta";
 
-export const metadata: Metadata = {
-  title: "Hey More Leads — More Conversations. More Closings. More Revenue.",
-  description: "Done-For-You Lead Generation. No Cold Calls. No Ad Spend. Ringless Voicemail Drops + AI WhatsApp Agents to fill your pipeline with appointment-ready prospects.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { title, description } = await getSeoMeta("home");
+  return { title, description };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
