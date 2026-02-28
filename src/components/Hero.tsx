@@ -47,113 +47,128 @@ function CyclingWord() {
   );
 }
 
+const PROOF_STATS = [
+  { num: "247", label: "Voicemails delivered\ntoday — live", live: true },
+  { num: "98%", label: "WhatsApp open rate\nvs 20% for email", live: false },
+  { num: "13%", label: "Avg callback rate\nvs 4% cold calling", live: false },
+  { num: "100%", label: "Done for you —\nstart to finish", live: false },
+];
+
 export default function Hero() {
   const cms = useCMS("home");
   return (
     <section style={{
       minHeight: "100vh",
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      display: "flex",
+      flexDirection: "column",
       alignItems: "center",
-      padding: "120px 48px 80px",
+      justifyContent: "center",
+      textAlign: "center",
+      padding: "140px 48px 0",
       position: "relative",
       overflow: "hidden",
       background: "#0A0A0A",
     }}>
-      {/* Glow */}
+      {/* Centered radial glow */}
       <div style={{
-        position: "absolute", right: -100, top: "50%", transform: "translateY(-50%)",
-        width: 700, height: 700,
-        background: "radial-gradient(circle, rgba(255,92,0,0.12) 0%, transparent 70%)",
+        position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+        width: 900, height: 900,
+        background: "radial-gradient(circle, rgba(255,92,0,0.09) 0%, transparent 65%)",
         pointerEvents: "none",
       }} />
 
-      {/* LEFT — CONTENT */}
-      <div>
-        <div className="anim-fade-up" style={{
-          display: "inline-flex", alignItems: "center", gap: 10,
-          fontSize: 12, fontWeight: 600, letterSpacing: 2,
-          textTransform: "uppercase", color: "#FF5C00", marginBottom: 24,
-        }}>
-          <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />
-          {cms("hero","eyebrow","Done-For-You Lead Generation")}
-        </div>
+      {/* Subtle grid lines */}
+      <div style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        backgroundImage: "linear-gradient(rgba(255,92,0,0.04) 1px, transparent 1px)",
+        backgroundSize: "100% 80px",
+        maskImage: "radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)",
+      }} />
 
-        <h1 className="anim-fade-up-1" style={{
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: "clamp(64px, 8vw, 110px)",
-          lineHeight: 0.92,
-          letterSpacing: 1,
-          color: "#F5F2ED",
-          marginBottom: 32,
-        }}>
-          YOUR NEXT<br />
-          10 CLIENTS<br />
-          ARE IN A<br />
-          <CyclingWord />
-        </h1>
-
-        <p className="anim-fade-up-2" style={{
-          fontSize: 18, lineHeight: 1.6, color: "#888880",
-          maxWidth: 480, marginBottom: 48, fontWeight: 300,
-        }}>
-          {cms("hero","subheadline","We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with appointment-ready prospects — without you lifting a finger.")}
-        </p>
-
-        <div className="anim-fade-up-3" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <a href="#contact" className="btn-primary">{cms("hero","cta_primary","Get More Leads Now →")}</a>
-          <a href="#how" className="btn-secondary">{cms("hero","cta_secondary","See How It Works")}</a>
-        </div>
+      {/* Eyebrow — lines both sides */}
+      <div className="anim-fade-up" style={{
+        display: "inline-flex", alignItems: "center", gap: 14,
+        fontSize: 12, fontWeight: 600, letterSpacing: 3,
+        textTransform: "uppercase", color: "#FF5C00", marginBottom: 32,
+        position: "relative",
+      }}>
+        <span style={{ display: "block", width: 40, height: 1, background: "#FF5C00", opacity: 0.6 }} />
+        {cms("hero", "eyebrow", "Done-For-You Lead Generation")}
+        <span style={{ display: "block", width: 40, height: 1, background: "#FF5C00", opacity: 0.6 }} />
       </div>
 
-      {/* RIGHT — DASHBOARD CARD */}
-      <div className="anim-fade-in" style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-        <div style={{
-          background: "#181818", border: "1px solid rgba(255,92,0,0.2)",
-          borderRadius: 4, padding: 32, width: 340, position: "relative",
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "#FF5C00" }} />
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#FF5C00", marginBottom: 20 }}>Live Campaign Dashboard</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 24 }}>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 64, lineHeight: 1, color: "#F5F2ED" }}>247</div>
-            <div style={{ fontSize: 14, color: "#888880", fontWeight: 300 }}>voicemails<br />delivered today</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { color: "#FF5C00", text: "RVM drop delivered — Michael T.", time: "2m ago", cls: "anim-pulse" },
-              { color: "#4ADE80", text: "WhatsApp lead qualified ✓", time: "6m ago", cls: "anim-pulse-1" },
-              { color: "#60A5FA", text: "Appointment booked — Sarah K.", time: "12m ago", cls: "anim-pulse-2" },
-            ].map((item, i) => (
-              <div key={i} className={item.cls} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "12px 16px", background: "#222222", borderRadius: 2,
-                fontSize: 13, color: "#F5F2ED",
-              }}>
-                <div className="anim-blink" style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, flexShrink: 0 }} />
-                <span>{item.text}</span>
-                <span style={{ marginLeft: "auto", fontSize: 11, color: "#888880" }}>{item.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Headline */}
+      <h1 className="anim-fade-up-1" style={{
+        fontFamily: "'Bebas Neue', sans-serif",
+        fontSize: "clamp(72px, 11vw, 148px)",
+        lineHeight: 0.88,
+        letterSpacing: 2,
+        color: "#F5F2ED",
+        marginBottom: 0,
+        maxWidth: 1100,
+        position: "relative",
+      }}>
+        YOUR NEXT 10 CLIENTS<br />
+        ARE IN A{" "}
+        <span style={{ position: "relative", display: "inline-block" }}>
+          <CyclingWord />
+          <span style={{
+            position: "absolute", bottom: 6, left: 0, right: 0,
+            height: 4, background: "#FF5C00", opacity: 0.35,
+            pointerEvents: "none",
+          }} />
+        </span>
+      </h1>
 
-        {/* Floating badges */}
-        <div className="anim-float" style={{
-          position: "absolute", top: -30, right: -60,
-          background: "#181818", border: "1px solid rgba(255,92,0,0.2)",
-          borderRadius: 4, padding: "14px 18px", fontSize: 12, whiteSpace: "nowrap",
-        }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#FF5C00", display: "block", lineHeight: 1 }}>94%</span>
-          <span style={{ fontSize: 11, color: "#888880", display: "block", marginTop: 2 }}>Listen Rate</span>
-        </div>
-        <div className="anim-float-delayed" style={{
-          position: "absolute", bottom: -30, left: -60,
-          background: "#181818", border: "1px solid rgba(255,92,0,0.2)",
-          borderRadius: 4, padding: "14px 18px", fontSize: 12, whiteSpace: "nowrap",
-        }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#FF5C00", display: "block", lineHeight: 1 }}>3.2×</span>
-          <span style={{ fontSize: 11, color: "#888880", display: "block", marginTop: 2 }}>Avg ROI</span>
-        </div>
+      {/* Subheadline */}
+      <p className="anim-fade-up-2" style={{
+        fontSize: 19, lineHeight: 1.65, color: "#888880",
+        maxWidth: 580, margin: "36px auto 52px", fontWeight: 300,
+        position: "relative",
+      }}>
+        {cms("hero", "subheadline", "We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with appointment-ready prospects — without you lifting a finger.")}
+      </p>
+
+      {/* CTAs */}
+      <div className="anim-fade-up-3" style={{
+        display: "flex", gap: 16, flexWrap: "wrap",
+        justifyContent: "center", position: "relative", marginBottom: 80,
+      }}>
+        <a href="#contact" className="btn-primary">{cms("hero", "cta_primary", "Get More Leads Now →")}</a>
+        <a href="#how" className="btn-secondary">{cms("hero", "cta_secondary", "See How It Works")}</a>
+      </div>
+
+      {/* Proof stats row */}
+      <div className="anim-fade-in" style={{
+        display: "flex", alignItems: "stretch",
+        background: "#181818", border: "1px solid rgba(255,92,0,0.15)",
+        position: "relative",
+      }}>
+        {PROOF_STATS.map((stat, i) => (
+          <div key={i} style={{
+            padding: "20px 36px", display: "flex", flexDirection: "column", gap: 4,
+            borderRight: i < PROOF_STATS.length - 1 ? "1px solid rgba(255,92,0,0.1)" : "none",
+            minWidth: 160, textAlign: "left",
+          }}>
+            <div style={{
+              fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, lineHeight: 1,
+              color: "#FF5C00", letterSpacing: -0.5,
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              {stat.live && (
+                <span className="anim-blink" style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: "#4ADE80", flexShrink: 0,
+                  boxShadow: "0 0 6px #4ADE80", display: "inline-block",
+                }} />
+              )}
+              {stat.num}
+            </div>
+            <div style={{ fontSize: 11, color: "#888880", fontWeight: 300, lineHeight: 1.4, whiteSpace: "pre-line" }}>
+              {stat.label}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );
