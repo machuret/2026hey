@@ -81,27 +81,33 @@ export default function WhatsAppAgentPage() {
       {/* ── HERO ── */}
       <section style={{
         minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr",
-        alignItems: "center", padding: "120px 48px 80px",
+        alignItems: "center", padding: "120px 64px 80px",
         position: "relative", overflow: "hidden",
       }}>
-        {/* Glows */}
-        <div style={{ position: "absolute", right: -80, top: "40%", transform: "translateY(-50%)", width: 700, height: 700, background: `radial-gradient(circle, rgba(37,211,102,0.1) 0%, transparent 68%)`, pointerEvents: "none" }} />
-        <div style={{ position: "absolute", left: -120, bottom: 0, width: 500, height: 500, background: `radial-gradient(circle, rgba(255,92,0,0.05) 0%, transparent 70%)`, pointerEvents: "none" }} />
+        {/* Centered radial glow */}
+        <div style={{ position: "absolute", top: "50%", left: "40%", transform: "translate(-50%,-50%)", width: 900, height: 900, background: `radial-gradient(circle, rgba(37,211,102,0.08) 0%, transparent 65%)`, pointerEvents: "none" }} />
+        {/* Subtle grid lines */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(37,211,102,0.03) 1px, transparent 1px)", backgroundSize: "100% 80px", maskImage: "radial-gradient(ellipse 80% 80% at 40% 50%, black 40%, transparent 100%)" }} />
 
         {/* Left copy */}
-        <div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: G, marginBottom: 24 }}>
-            <span style={{ display: "block", width: 32, height: 2, background: G }} />{cms("hero","eyebrow","AI WhatsApp Agent")}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+          {/* Eyebrow — line left + right */}
+          <div className="anim-fade-up" style={{ display: "inline-flex", alignItems: "center", gap: 14, fontSize: 12, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase", color: G, marginBottom: 28 }}>
+            <span style={{ display: "block", width: 40, height: 1, background: G, opacity: 0.6 }} />
+            {cms("hero","eyebrow","AI WhatsApp Agent")}
+            <span style={{ display: "block", width: 40, height: 1, background: G, opacity: 0.6 }} />
           </div>
-          <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(60px,8vw,108px)", lineHeight: 0.9, letterSpacing: 0.5, color: WHITE, marginBottom: 32 }}>
+          <h1 className="anim-fade-up-1" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(64px,8vw,118px)", lineHeight: 0.88, letterSpacing: 1.5, color: WHITE, marginBottom: 28 }}>
             {cms("hero","headline","WHILE YOU\nSLEEP, IT\nQUALIFIES.\nCONVERTS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
           </h1>
-          <p style={{ fontSize: 18, lineHeight: 1.65, color: MUTED, maxWidth: 480, marginBottom: 48, fontWeight: 300 }}>
+          {/* Accent underline bar */}
+          <div style={{ width: 80, height: 3, background: G, opacity: 0.5, marginBottom: 28 }} />
+          <p className="anim-fade-up-2" style={{ fontSize: 17, lineHeight: 1.7, color: MUTED, maxWidth: 460, marginBottom: 44, fontWeight: 300 }}>
             {cms("hero","subheadline","Your competitors are losing leads to slow response times and unqualified conversations. Our AI WhatsApp Agent responds in under 30 seconds, qualifies every prospect, and delivers appointment-ready leads directly to your calendar — 24 hours a day, 7 days a week.")}
           </p>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div className="anim-fade-up-3" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <a href="/#contact" style={{ background: G, color: BG, padding: "16px 40px", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))", display: "inline-block" }}>Deploy My Agent →</a>
-            <a href="#how-it-works" style={{ background: "transparent", color: WHITE, padding: "16px 40px", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 19, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", textDecoration: "none", border: "1px solid rgba(37,211,102,0.3)", display: "inline-block" }}>See How It Works</a>
+            <a href="#how-it-works" style={{ background: "transparent", color: WHITE, padding: "16px 40px", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 19, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", textDecoration: "none", border: "1px solid rgba(37,211,102,0.3)", display: "inline-block", transition: "border-color 0.2s, color 0.2s" }}>See How It Works</a>
           </div>
         </div>
 
