@@ -1,6 +1,25 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
 import Footer from "@/components/Footer";
 
 /* ── colours ── */
@@ -52,6 +71,7 @@ const testimonials = [
 const waveBars = [8, 20, 14, 28, 16, 24, 10, 32, 18, 22, 12, 26, 8, 20, 14, 6];
 
 export default function RinglessVoicemailPage() {
+  const cms = useCMS("rvm");
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); }),
@@ -77,15 +97,15 @@ export default function RinglessVoicemailPage() {
         {/* Left copy */}
         <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: O, marginBottom: 24 }}>
-            <span style={{ display: "block", width: 32, height: 2, background: O }} />Ringless Voicemail Drops
+            <span style={{ display: "block", width: 32, height: 2, background: O }} />{cms("hero","eyebrow","Ringless Voicemail Drops")}
           </div>
           <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(60px,8vw,112px)", lineHeight: 0.88, letterSpacing: 0.5, marginBottom: 32 }}>
-            <span style={{ color: WHITE }}>STOP CHASING.</span><br />
-            <span style={{ color: O }}>START</span><br />
-            <span style={{ color: WHITE }}>RECEIVING.</span>
+            <span style={{ color: WHITE }}>{cms("hero","headline_1","STOP CHASING.")}</span><br />
+            <span style={{ color: O }}>{cms("hero","headline_2","START")}</span><br />
+            <span style={{ color: WHITE }}>{cms("hero","headline_3","RECEIVING.")}</span>
           </h1>
           <p style={{ fontSize: 18, lineHeight: 1.65, color: MUTED, maxWidth: 500, marginBottom: 48, fontWeight: 300 }}>
-            We send thousands of ringless voicemails directly to your prospects&apos; inboxes — without their phone ever ringing. Your voice lands. They listen. They call back. We handle every single step from script to delivery. You just pick up the phone.
+            {cms("hero","subheadline","We send thousands of ringless voicemails directly to your prospects' inboxes — without their phone ever ringing. Your voice lands. They listen. They call back. We handle every single step from script to delivery. You just pick up the phone.")}
           </p>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <a href="/#contact" style={{ background: O, color: BLK, padding: "16px 40px", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))", display: "inline-block" }}>Start Getting Callbacks →</a>
@@ -181,21 +201,21 @@ export default function RinglessVoicemailPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              What It Is<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("what_is","eyebrow","What It Is")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,72px)", lineHeight: 0.93, color: WHITE, marginBottom: 20 }}>
-              YOUR VOICE IN THEIR<br />INBOX — WITHOUT THEIR<br />PHONE EVER RINGING.
+              {cms("what_is","headline","YOUR VOICE IN THEIR\nINBOX — WITHOUT THEIR\nPHONE EVER RINGING.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "start", marginTop: 60 }}>
             <div className="reveal" style={{ fontSize: 17, lineHeight: 1.85, color: MUTED, fontWeight: 300 }}>
-              <p style={{ marginBottom: 24 }}>Ringless Voicemail Drops (RVMs) use server-to-server technology to deliver a pre-recorded voice message directly into a prospect&apos;s voicemail inbox — bypassing the phone call entirely. Their phone never rings. They simply receive a notification that a new voicemail is waiting.</p>
-              <p style={{ marginBottom: 24 }}>The result? <strong style={{ color: WHITE, fontWeight: 500 }}>No interruption. No friction. No hang-up.</strong> The prospect listens on their own terms, already hearing your voice and your offer before any conversation has taken place. When they call back, they&apos;re warm — not cold.</p>
+              <p style={{ marginBottom: 24 }}>{cms("what_is","body_1","Ringless Voicemail Drops (RVMs) use server-to-server technology to deliver a pre-recorded voice message directly into a prospect's voicemail inbox — bypassing the phone call entirely.")}</p>
+              <p style={{ marginBottom: 24 }}>{cms("what_is","body_2","No interruption. No friction. No hang-up. The prospect listens on their own terms, already hearing your voice and your offer before any conversation has taken place.")}</p>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, lineHeight: 1.1, color: WHITE, borderLeft: `3px solid ${O}`, paddingLeft: 24, margin: "36px 0", letterSpacing: 0.5 }}>
-                Cold calling interrupts.<br />Ringless voicemail <span style={{ color: O }}>intrigues.</span>
+                {cms("what_is","pull_quote","Cold calling interrupts. Ringless voicemail intrigues.")}
               </div>
-              <p style={{ marginBottom: 24 }}>And unlike cold calls — where 80% of dials go unanswered — every voicemail drop is <strong style={{ color: WHITE, fontWeight: 500 }}>delivered directly</strong>. The prospect receives it. They choose when to listen. And when they do, you&apos;ve already made the introduction.</p>
-              <p>We handle the entire process. You never touch a platform, upload a list, or record a message unless you want to. <strong style={{ color: WHITE, fontWeight: 500 }}>We do all of it for you</strong> — and report back with exactly what&apos;s working.</p>
+              <p style={{ marginBottom: 24 }}>{cms("what_is","body_3","And unlike cold calls — where 80% of dials go unanswered — every voicemail drop is delivered directly. The prospect receives it. They choose when to listen.")}</p>
+              <p>{cms("what_is","body_4","We handle the entire process. You never touch a platform, upload a list, or record a message unless you want to. We do all of it for you.")}</p>
             </div>
 
             <div className="reveal" style={{ transitionDelay: "0.12s" }}>
@@ -230,10 +250,10 @@ export default function RinglessVoicemailPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto", position: "relative" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: "rgba(0,0,0,0.45)", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              Our Process<span style={{ display: "block", height: 1, width: 40, background: "rgba(0,0,0,0.35)" }} />
+              {cms("process","eyebrow","Our Process")}<span style={{ display: "block", height: 1, width: 40, background: "rgba(0,0,0,0.35)" }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,72px)", lineHeight: 0.93, color: BLK, marginBottom: 20 }}>
-              FOUR STEPS.<br />ZERO EFFORT<br />ON YOUR END.
+              {cms("process","headline","FOUR STEPS.\nZERO EFFORT\nON YOUR END.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 3, background: "rgba(0,0,0,0.35)", marginTop: 60 }}>
@@ -261,12 +281,12 @@ export default function RinglessVoicemailPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              What We Handle For You<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("what_we_handle","eyebrow","What We Handle For You")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,72px)", lineHeight: 0.93, color: WHITE, marginBottom: 20 }}>
-              EVERYTHING. WE MEAN<br />EVERYTHING.
+              {cms("what_we_handle","headline","EVERYTHING. WE MEAN\nEVERYTHING.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
-            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.7, maxWidth: 580, marginTop: 12 }}>This is a fully managed service. You have no platform to learn, no list to build, no script to write, no campaign to run. We do all of it. Here&apos;s exactly what that looks like.</p>
+            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.7, maxWidth: 580, marginTop: 12 }}>{cms("what_we_handle","subheadline","This is a fully managed service. You have no platform to learn, no list to build, no script to write, no campaign to run. We do all of it. Here's exactly what that looks like.")}</p>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: DARK3, marginTop: 60 }}>
             {handleCards.map((c) => (
@@ -288,12 +308,12 @@ export default function RinglessVoicemailPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              Industries We Serve<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("who_its_for","eyebrow","Industries We Serve")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,72px)", lineHeight: 0.93, color: BLK, marginBottom: 20 }}>
-              WORKS FOR ANY<br />BUSINESS THAT<br />SELLS TO PEOPLE.
+              {cms("who_its_for","headline","WORKS FOR ANY\nBUSINESS THAT\nSELLS TO PEOPLE.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
-            <p style={{ fontSize: 17, lineHeight: 1.7, color: "#555", fontWeight: 300, maxWidth: 640, marginBottom: 60 }}>Ringless voicemail works best for businesses with a clear offer, a defined target audience, and a sales process that benefits from warm inbound calls. Here are the industries we see the strongest results in.</p>
+            <p style={{ fontSize: 17, lineHeight: 1.7, color: "#555", fontWeight: 300, maxWidth: 640, marginBottom: 60 }}>{cms("who_its_for","subheadline","Ringless voicemail works best for businesses with a clear offer, a defined target audience, and a sales process that benefits from warm inbound calls.")}</p>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: "#E0D5C8" }}>
             {whoCards.map((c) => (
@@ -321,12 +341,12 @@ export default function RinglessVoicemailPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              What To Expect<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("results","eyebrow","What To Expect")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,72px)", lineHeight: 0.93, color: WHITE, marginBottom: 20 }}>
-              REAL NUMBERS FROM<br />REAL CAMPAIGNS.
+              {cms("results","headline","REAL NUMBERS FROM\nREAL CAMPAIGNS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
-            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.7, maxWidth: 580, marginTop: 12 }}>Results vary by industry, offer, and list quality — but here&apos;s what our managed campaigns consistently deliver for clients running The Drop package.</p>
+            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.7, maxWidth: 580, marginTop: 12 }}>{cms("results","subheadline","Results vary by industry, offer, and list quality — but here's what our managed campaigns consistently deliver for clients running The Drop package.")}</p>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: DARK3, marginTop: 60 }}>
             {resultCards.map((r) => (
@@ -347,10 +367,10 @@ export default function RinglessVoicemailPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              From Our Clients<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("testimonials","eyebrow","From Our Clients")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,72px)", lineHeight: 0.93, color: WHITE, marginBottom: 20 }}>
-              WHAT HAPPENS WHEN<br />YOUR PHONE STARTS RINGING.
+              {cms("testimonials","headline","WHAT HAPPENS WHEN\nYOUR PHONE STARTS RINGING.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: DARK3, marginTop: 60 }}>

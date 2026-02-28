@@ -1,6 +1,25 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
 import Footer from "@/components/Footer";
 
 const compareRows = [
@@ -45,6 +64,7 @@ const WHITE = "#F0F7F3";
 const MUTED = "#7A9186";
 
 export default function WhatsAppAgentPage() {
+  const cms = useCMS("whatsapp");
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); }),
@@ -71,13 +91,13 @@ export default function WhatsAppAgentPage() {
         {/* Left copy */}
         <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: G, marginBottom: 24 }}>
-            <span style={{ display: "block", width: 32, height: 2, background: G }} />AI WhatsApp Agent
+            <span style={{ display: "block", width: 32, height: 2, background: G }} />{cms("hero","eyebrow","AI WhatsApp Agent")}
           </div>
           <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(60px,8vw,108px)", lineHeight: 0.9, letterSpacing: 0.5, color: WHITE, marginBottom: 32 }}>
-            WHILE YOU<br />SLEEP, IT<br /><span style={{ color: G }}>QUALIFIES.</span><br /><span style={{ color: O }}>CONVERTS.</span>
+            {cms("hero","headline","WHILE YOU\nSLEEP, IT\nQUALIFIES.\nCONVERTS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
           </h1>
           <p style={{ fontSize: 18, lineHeight: 1.65, color: MUTED, maxWidth: 480, marginBottom: 48, fontWeight: 300 }}>
-            Your competitors are losing leads to slow response times and unqualified conversations. Our AI WhatsApp Agent responds in under 30 seconds, qualifies every prospect, and delivers appointment-ready leads directly to your calendar — 24 hours a day, 7 days a week.
+            {cms("hero","subheadline","Your competitors are losing leads to slow response times and unqualified conversations. Our AI WhatsApp Agent responds in under 30 seconds, qualifies every prospect, and delivers appointment-ready leads directly to your calendar — 24 hours a day, 7 days a week.")}
           </p>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <a href="/#contact" style={{ background: G, color: BG, padding: "16px 40px", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))", display: "inline-block" }}>Deploy My Agent →</a>
@@ -169,17 +189,17 @@ export default function WhatsAppAgentPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              The Platform<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("why","eyebrow","The Platform")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,70px)", lineHeight: 0.95, color: WHITE, marginBottom: 20 }}>
-              WHY WHATSAPP IS THE<br />MOST POWERFUL SALES CHANNEL<br />NOBODY IS USING PROPERLY.
+              {cms("why","headline","WHY WHATSAPP IS THE\nMOST POWERFUL SALES CHANNEL\nNOBODY IS USING PROPERLY.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center", marginTop: 60 }}>
             <div style={{ fontSize: 17, lineHeight: 1.8, color: MUTED, fontWeight: 300 }}>
-              <p style={{ marginBottom: 24 }}>Email open rates sit at 20% on a good day. Cold calls go unanswered 80% of the time. But WhatsApp? <strong style={{ color: WHITE, fontWeight: 500 }}>98% open rate. 45–60% click-through rate. 2.6 billion active users.</strong> It&apos;s not a messaging app anymore — it&apos;s the world&apos;s most effective sales channel.</p>
-              <p style={{ marginBottom: 24 }}>The problem isn&apos;t the platform. The problem is that most businesses either ignore it entirely, or they try to manage it manually — and manual doesn&apos;t scale. A lead who messages at 10pm on a Friday doesn&apos;t want to hear from you on Monday morning. <strong style={{ color: WHITE, fontWeight: 500 }}>By then, they&apos;ve already gone with someone else.</strong></p>
-              <p>Our AI WhatsApp Agent solves this. It engages every lead the moment they reach out — with a natural, human-feeling conversation that qualifies them in real time and books appointments directly into your calendar. You don&apos;t touch a thing until the right person shows up.</p>
+              <p style={{ marginBottom: 24 }}>{cms("why","body_1","Email open rates sit at 20% on a good day. Cold calls go unanswered 80% of the time. But WhatsApp? 98% open rate. 45–60% click-through rate. 2.6 billion active users.")}</p>
+              <p style={{ marginBottom: 24 }}>{cms("why","body_2","The problem isn't the platform. The problem is that most businesses either ignore it entirely, or they try to manage it manually — and manual doesn't scale.")}</p>
+              <p>{cms("why","body_3","Our AI WhatsApp Agent solves this. It engages every lead the moment they reach out — with a natural, human-feeling conversation that qualifies them in real time.")}</p>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, background: DARK3 }}>
               {[
@@ -203,10 +223,10 @@ export default function WhatsAppAgentPage() {
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: G, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              The Honest Comparison<span style={{ display: "block", height: 1, width: 40, background: G }} />
+              {cms("comparison","eyebrow","The Honest Comparison")}<span style={{ display: "block", height: 1, width: 40, background: G }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,70px)", lineHeight: 0.95, color: WHITE, marginBottom: 20 }}>
-              BY THE TIME YOU TRAIN<br />A SALES REP, YOU&apos;VE ALREADY<br />LOST <span style={{ color: O }}>40 LEADS.</span>
+              {cms("comparison","headline","BY THE TIME YOU TRAIN\nA SALES REP, YOU'VE ALREADY\nLOST 40 LEADS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
 
@@ -232,7 +252,7 @@ export default function WhatsAppAgentPage() {
           </div>
 
           <div className="reveal" style={{ background: DARK3, padding: "24px 28px", borderLeft: `3px solid ${O}`, marginTop: 2, fontSize: 15, color: WHITE, fontWeight: 400, lineHeight: 1.6 }}>
-            <strong style={{ color: O }}>The bottom line:</strong> a human setter costs more, takes longer to deploy, works shorter hours, and delivers inconsistent results. Our AI agent is live in days, costs a fixed rate, never takes a day off, and follows your qualification process perfectly — every time.
+{cms("comparison","bottom_note","The bottom line: a human setter costs more, takes longer to deploy, works shorter hours, and delivers inconsistent results. Our AI agent is live in days, costs a fixed rate, never takes a day off, and follows your qualification process perfectly — every time.")}
           </div>
         </div>
       </section>
@@ -242,10 +262,10 @@ export default function WhatsAppAgentPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: G, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              How It Works<span style={{ display: "block", height: 1, width: 40, background: G }} />
+              {cms("how_it_works","eyebrow","How It Works")}<span style={{ display: "block", height: 1, width: 40, background: G }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,70px)", lineHeight: 0.95, color: WHITE, marginBottom: 20 }}>
-              FOUR STEPS FROM<br />FIRST MESSAGE TO<br />BOOKED APPOINTMENT.
+              {cms("how_it_works","headline","FOUR STEPS FROM\nFIRST MESSAGE TO\nBOOKED APPOINTMENT.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 2, background: DARK3, marginTop: 60 }}>
@@ -268,12 +288,12 @@ export default function WhatsAppAgentPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: G, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              What&apos;s Inside<span style={{ display: "block", height: 1, width: 40, background: G }} />
+              {cms("features","eyebrow","What's Inside")}<span style={{ display: "block", height: 1, width: 40, background: G }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(40px,5vw,70px)", lineHeight: 0.95, color: WHITE, marginBottom: 20 }}>
-              EVERYTHING BUILT IN.<br />NOTHING LEFT OUT.
+              {cms("features","headline","EVERYTHING BUILT IN.\nNOTHING LEFT OUT.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
-            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.7, maxWidth: 580, marginTop: 12 }}>Every AI agent we deploy is custom-built for your business — then backed by a full suite of tools that make the whole system run without you having to touch it.</p>
+            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.7, maxWidth: 580, marginTop: 12 }}>{cms("features","subheadline","Every AI agent we deploy is custom-built for your business — then backed by a full suite of tools that make the whole system run without you having to touch it.")}</p>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: DARK3, marginTop: 60 }}>
             {features.map((f) => (
@@ -294,8 +314,7 @@ export default function WhatsAppAgentPage() {
       <div className="reveal" style={{ background: G, padding: "70px 48px", textAlign: "center", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(100px,15vw,200px)", color: "rgba(0,0,0,0.07)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", whiteSpace: "nowrap", pointerEvents: "none", letterSpacing: 4, userSelect: "none" }}>ALWAYS ON</div>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(32px,5vw,62px)", lineHeight: 1.05, color: BG, maxWidth: 860, margin: "0 auto", letterSpacing: 0.5, position: "relative" }}>
-          A lead who messages you at <span style={{ borderBottom: "4px solid rgba(0,0,0,0.2)" }}>10pm on a Friday</span> has already made a decision.<br />
-          The only question is whether <span style={{ color: "rgba(180,60,0,0.85)" }}>you&apos;re the one who answers.</span>
+          {cms("manifesto","text","A lead who messages you at 10pm on a Friday has already made a decision. The only question is whether you're the one who answers.")}
         </div>
       </div>
 
@@ -306,14 +325,14 @@ export default function WhatsAppAgentPage() {
         <div className="reveal" style={{ position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", marginBottom: 20 }}>
             <div style={{ height: 1, width: 40, background: G }} />
-            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: G }}>Ready to deploy?</span>
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: G }}>{cms("final_cta","eyebrow","Ready to deploy?")}</span>
             <div style={{ height: 1, width: 40, background: G }} />
           </div>
           <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(52px,8vw,110px)", lineHeight: 0.9, color: WHITE, marginBottom: 24, letterSpacing: 1 }}>
-            YOUR AGENT<br />CAN BE <span style={{ color: G }}>LIVE</span><br />THIS <span style={{ color: O }}>WEEK.</span>
+            {cms("final_cta","headline","YOUR AGENT\nCAN BE LIVE\nTHIS WEEK.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
           </h2>
           <p style={{ fontSize: 18, color: MUTED, maxWidth: 540, margin: "0 auto 48px", lineHeight: 1.7, fontWeight: 300 }}>
-            Book a free strategy call. We&apos;ll walk you through exactly how the agent would be built for your business, what qualification criteria we&apos;d use, and what results you can realistically expect in the first 30 days.
+            {cms("final_cta","subheadline","Book a free strategy call. We'll walk you through exactly how the agent would be built for your business, what qualification criteria we'd use, and what results you can realistically expect in the first 30 days.")}
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
             <a href="/#contact" style={{ background: G, color: BG, padding: "16px 40px", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))", display: "inline-block" }}>Deploy My AI Agent →</a>

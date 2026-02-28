@@ -1,7 +1,26 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
 
 const beliefs = [
   {
@@ -36,6 +55,8 @@ const team = [
 ];
 
 export default function AboutPage() {
+  const cms = useCMS("about");
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); }),
@@ -78,7 +99,7 @@ export default function AboutPage() {
           textTransform: "uppercase", color: "#FF5C00", marginBottom: 24,
         }}>
           <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />
-          Who We Are
+          {cms("hero","eyebrow","Who We Are")}
         </div>
 
         <h1 className="anim-fade-up-1" style={{
@@ -87,14 +108,14 @@ export default function AboutPage() {
           lineHeight: 0.88, letterSpacing: 1,
           color: "#F5F2ED", maxWidth: 900,
         }}>
-          WE BUILT THIS BECAUSE<br />THE <span style={{ color: "#FF5C00" }}>OLD WAY</span><br />STOPPED WORKING.
+          {cms("hero","headline","WE BUILT THIS BECAUSE\nTHE OLD WAY\nSTOPPED WORKING.").split("\n").map((l,i,a) => <span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h1>
 
         <p className="anim-fade-up-2" style={{
           fontSize: 18, color: "#888880", lineHeight: 1.7,
           fontWeight: 300, maxWidth: 560, marginTop: 32,
         }}>
-          Hey More Leads is a done-for-you lead generation system built by a small team who got tired of watching great businesses lose to inferior ones — simply because their outreach was broken.
+          {cms("hero","subheadline","Hey More Leads is a done-for-you lead generation system built by a small team who got tired of watching great businesses lose to inferior ones — simply because their outreach was broken.")}
         </p>
       </section>
 
@@ -102,25 +123,25 @@ export default function AboutPage() {
       <section style={{ background: "#111111", padding: "100px 48px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 100, alignItems: "start" }}>
           <div className="reveal" style={{ position: "sticky", top: 120 }}>
-            <div className="section-label">Why We Built This</div>
-            <h2 className="section-headline">THE STORY BEHIND THE SYSTEM.</h2>
+            <div className="section-label">{cms("story","eyebrow","Why We Built This")}</div>
+            <h2 className="section-headline">{cms("story","headline","THE STORY BEHIND THE SYSTEM.")}</h2>
           </div>
           <div className="reveal" style={{ fontSize: 17, lineHeight: 1.85, color: "#888880", fontWeight: 300 }}>
-            <p style={{ marginBottom: 28 }}>A few years ago, our founder was running a small B2B consulting firm. The offer was solid. The results for clients were real. But the pipeline? A mess of cold calls that went to voicemail, Facebook ads that burned cash, and email campaigns that disappeared into spam folders.</p>
-            <p style={{ marginBottom: 28 }}><strong style={{ color: "#F5F2ED", fontWeight: 500 }}>The leads weren&apos;t the problem. The channels were.</strong> Every &quot;proven&quot; outreach method had become so overcrowded, so overused, that it stopped performing. And the agencies promising to fix it were charging enterprise rates for amateur results.</p>
+            <p style={{ marginBottom: 28 }}>{cms("story","body_1","A few years ago, our founder was running a small B2B consulting firm. The offer was solid. The results for clients were real. But the pipeline? A mess of cold calls that went to voicemail, Facebook ads that burned cash, and email campaigns that disappeared into spam folders.")}</p>
+            <p style={{ marginBottom: 28 }}>{cms("story","body_2","The leads weren't the problem. The channels were. Every proven outreach method had become so overcrowded, so overused, that it stopped performing.")}</p>
 
             <div style={{
               fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, lineHeight: 1.1,
               color: "#F5F2ED", borderLeft: "3px solid #FF5C00",
               paddingLeft: 24, margin: "40px 0", letterSpacing: 0.5,
             }}>
-              &quot;We weren&apos;t going to out-spend the big players. So we had to <span style={{ color: "#FF5C00" }}>out-smart</span> them.&quot;
+              &ldquo;{cms("story","pull_quote","We weren't going to out-spend the big players. So we had to out-smart them.")}&rdquo;
             </div>
 
-            <p style={{ marginBottom: 28 }}>That&apos;s when the team started experimenting. Ringless voicemail drops to get in front of the right people without interrupting their day. AI agents on WhatsApp to qualify leads at scale — around the clock, without a salesperson on the phone. Two tools. One system. Completely done for you.</p>
-            <p style={{ marginBottom: 28 }}><strong style={{ color: "#F5F2ED", fontWeight: 500 }}>The results were immediate.</strong> Callback rates jumped. Qualified leads started showing up in calendars without anyone having to chase them. And the cost per appointment? A fraction of what paid ads were delivering.</p>
-            <p style={{ marginBottom: 28 }}>Hey More Leads was built to take that system — the one that worked for us — and give it to small and mid-sized businesses who are tired of fighting on the wrong battlefield.</p>
-            <p><strong style={{ color: "#F5F2ED", fontWeight: 500 }}>You don&apos;t need a bigger budget. You need a smarter system.</strong> That&apos;s what we built. That&apos;s what we run for you.</p>
+            <p style={{ marginBottom: 28 }}>{cms("story","body_3","That's when the team started experimenting. Ringless voicemail drops to get in front of the right people without interrupting their day.")}</p>
+            <p style={{ marginBottom: 28 }}>{cms("story","body_4","The results were immediate. Callback rates jumped. Qualified leads started showing up in calendars without anyone having to chase them.")}</p>
+            <p style={{ marginBottom: 28 }}>{cms("story","body_5","Hey More Leads was built to take that system and give it to small and mid-sized businesses who are tired of fighting on the wrong battlefield.")}</p>
+            <p>{cms("story","body_6","You don't need a bigger budget. You need a smarter system. That's what we built. That's what we run for you.")}</p>
           </div>
         </div>
       </section>
@@ -129,8 +150,8 @@ export default function AboutPage() {
       <section style={{ background: "#0A0A0A", padding: "100px 48px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
-            <div className="section-label">What We Stand For</div>
-            <h2 className="section-headline">THREE THINGS WE&apos;LL<br />NEVER COMPROMISE ON.</h2>
+            <div className="section-label">{cms("beliefs","eyebrow","What We Stand For")}</div>
+            <h2 className="section-headline">{cms("beliefs","headline","THREE THINGS WE'LL NEVER COMPROMISE ON.")}</h2>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: "#222222", marginTop: 60 }}>
             {beliefs.map((b, i) => (
@@ -170,7 +191,7 @@ export default function AboutPage() {
           maxWidth: 900, margin: "0 auto",
           letterSpacing: 0.5, position: "relative",
         }}>
-          Small businesses deserve the same <span style={{ borderBottom: "4px solid rgba(0,0,0,0.25)" }}>firepower</span> as the big ones — without the bloated agency fees and the empty promises.
+          {cms("manifesto","text","Small businesses deserve the same firepower as the big ones — without the bloated agency fees and the empty promises.")}
         </div>
       </div>
 
@@ -178,8 +199,8 @@ export default function AboutPage() {
       <section id="process" style={{ background: "#111111", padding: "100px 48px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
-            <div className="section-label">How We Work</div>
-            <h2 className="section-headline">WHAT WORKING WITH US<br />ACTUALLY LOOKS LIKE.</h2>
+            <div className="section-label">{cms("process","eyebrow","How We Work")}</div>
+            <h2 className="section-headline">{cms("process","headline","WHAT WORKING WITH US ACTUALLY LOOKS LIKE.")}</h2>
           </div>
           <div className="reveal" style={{ display: "flex", flexDirection: "column", gap: 2, background: "#222222", marginTop: 60 }}>
             {processRows.map((row) => (
@@ -212,10 +233,10 @@ export default function AboutPage() {
       <section style={{ background: "#0A0A0A", padding: "100px 48px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="reveal">
-            <div className="section-label">The Team</div>
-            <h2 className="section-headline">SMALL TEAM.<br />SERIOUS OPERATORS.</h2>
+            <div className="section-label">{cms("team","eyebrow","The Team")}</div>
+            <h2 className="section-headline">{cms("team","headline","SMALL TEAM. SERIOUS OPERATORS.")}</h2>
             <p style={{ fontSize: 17, color: "#888880", fontWeight: 300, lineHeight: 1.7, maxWidth: 600, marginTop: 16 }}>
-              We&apos;re not a bloated agency with account managers who&apos;ve never run a campaign. We&apos;re a lean team of specialists who&apos;ve built and run these systems ourselves — and we treat your pipeline like it&apos;s our own.
+              {cms("team","subheadline","We're not a bloated agency with account managers who've never run a campaign. We're a lean team of specialists who've built and run these systems ourselves.")}
             </p>
           </div>
           <div className="reveal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, background: "#222222", marginTop: 60 }}>
@@ -257,17 +278,17 @@ export default function AboutPage() {
           pointerEvents: "none",
         }} />
         <div className="reveal" style={{ position: "relative", zIndex: 1 }}>
-          <div className="section-label" style={{ justifyContent: "center" }}>Work With Us</div>
+          <div className="section-label" style={{ justifyContent: "center" }}>{cms("final_cta","eyebrow","Work With Us")}</div>
           <h2 style={{
             fontFamily: "'Bebas Neue',sans-serif",
             fontSize: "clamp(48px,7vw,100px)",
             lineHeight: 0.92, color: "#F5F2ED",
             marginBottom: 24, letterSpacing: 1,
           }}>
-            NOW YOU KNOW US.<br />LET&apos;S TALK ABOUT <span style={{ color: "#FF5C00" }}>YOU.</span>
+            {cms("final_cta","headline","NOW YOU KNOW US. LET'S TALK ABOUT YOU.")}
           </h2>
           <p style={{ fontSize: 17, color: "#888880", maxWidth: 520, margin: "0 auto 48px", lineHeight: 1.7, fontWeight: 300 }}>
-            Book a free strategy call. We&apos;ll tell you exactly what we&apos;d build for your business, what results you can expect, and what it takes to get started. No pressure. Just a straight conversation.
+            {cms("final_cta","subheadline","Book a free strategy call. We'll tell you exactly what we'd build for your business, what results you can expect, and what it takes to get started. No pressure. Just a straight conversation.")}
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
             <a href="/#contact" className="btn-primary">Book My Free Strategy Call →</a>

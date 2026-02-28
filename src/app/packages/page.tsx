@@ -3,6 +3,25 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
+
 /* ─── DATA ─── */
 const rvmFeatures = [
   "Voicemail script writing & production",
@@ -177,6 +196,7 @@ function BreakdownCard({ color, tag, title, intro, groups }: {
 
 /* ─── PAGE ─── */
 export default function PackagesPage() {
+  const cms = useCMS("packages");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
@@ -203,13 +223,13 @@ export default function PackagesPage() {
         <div style={{ position: "absolute", right: -150, top: "50%", transform: "translateY(-50%)", width: 600, height: 600, background: "radial-gradient(circle, rgba(255,92,0,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div className="anim-fade-up" style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#FF5C00", marginBottom: 24 }}>
-          <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />Transparent Pricing
+          <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />{cms("hero","eyebrow","Transparent Pricing")}
         </div>
         <h1 className="anim-fade-up-1" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px,8vw,118px)", lineHeight: 0.88, letterSpacing: 1, color: "#F5F2ED", maxWidth: 900 }}>
-          SIMPLE PRICING.<br />SERIOUS <span style={{ color: "#FF5C00" }}>RESULTS.</span>
+          {cms("hero","headline","SIMPLE PRICING.\nSERIOUS RESULTS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h1>
         <p className="anim-fade-up-2" style={{ fontSize: 18, color: "#888880", lineHeight: 1.7, fontWeight: 300, maxWidth: 580, marginTop: 32 }}>
-          No hidden fees. No long-term lock-ins. Just a done-for-you system that fills your pipeline — month after month.
+          {cms("hero","subheadline","No hidden fees. No long-term lock-ins. Just a done-for-you system that fills your pipeline — month after month.")}
         </p>
       </section>
 

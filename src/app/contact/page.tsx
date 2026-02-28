@@ -3,6 +3,25 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
+type PC = Record<string, Record<string, string>>;
+function useCMS(page: string) {
+  const [c, setC] = useState<PC>({});
+  useEffect(() => {
+    fetch(`/api/admin/page-content?page=${page}`)
+      .then(r => r.json())
+      .then(j => {
+        const out: PC = {};
+        for (const row of (j.data ?? [])) {
+          if (!out[row.section]) out[row.section] = {};
+          out[row.section][row.field] = row.value;
+        }
+        setC(out);
+      })
+      .catch(() => {});
+  }, [page]);
+  return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
+}
+
 const faqs = [
   { q: "Is the strategy call really free?", a: "Yes, completely. No credit card, no commitment, no catch. It's a 30-minute conversation — we learn about your business, you learn about our system, and we both decide if there's a fit. If there isn't, you leave with useful insight regardless." },
   { q: "What should I prepare before the call?", a: "Nothing formal — just a clear sense of who your ideal client is and what your current lead generation situation looks like. If you have data on your current cost per lead or close rate, bring it. Otherwise, your form answers are enough for us to come prepared." },
@@ -29,6 +48,7 @@ const INPUT_BORDER = "#2C2C2C";
 type FormState = "idle" | "submitting" | "success" | "error";
 
 export default function ContactPage() {
+  const cms = useCMS("contact");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [formState, setFormState] = useState<FormState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -97,13 +117,13 @@ export default function ContactPage() {
         <div style={{ position: "absolute", right: -120, top: "50%", transform: "translateY(-50%)", width: 600, height: 600, background: "radial-gradient(circle, rgba(255,92,0,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: O, marginBottom: 24 }}>
-          <span style={{ display: "block", width: 32, height: 2, background: O }} />Free Strategy Call
+          <span style={{ display: "block", width: 32, height: 2, background: O }} />{cms("hero","eyebrow","Free Strategy Call")}
         </div>
         <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px,8vw,115px)", lineHeight: 0.88, letterSpacing: 1, color: WHITE, maxWidth: 900 }}>
-          LET&apos;S TALK ABOUT<br />GETTING YOU <span style={{ color: O }}>MORE LEADS.</span>
+          {cms("hero","headline","LET'S TALK ABOUT\nGETTING YOU MORE LEADS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
         </h1>
         <p style={{ fontSize: 18, color: MUTED, lineHeight: 1.7, fontWeight: 300, maxWidth: 600, marginTop: 28 }}>
-          No pitch. No pressure. Just a straight conversation about your business, your goals, and whether our system is the right fit. If it is — we&apos;ll show you exactly what we&apos;d build and what results to expect.
+          {cms("hero","subheadline","No pitch. No pressure. Just a straight conversation about your business, your goals, and whether our system is the right fit. If it is — we'll show you exactly what we'd build and what results to expect.")}
         </p>
       </section>
 
@@ -131,14 +151,14 @@ export default function ContactPage() {
         {/* LEFT PANEL */}
         <div className="reveal" style={{ position: "sticky", top: 100 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-            What Happens Next<span style={{ display: "block", height: 1, width: 40, background: O }} />
+            {cms("left_panel","eyebrow","What Happens Next")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
           </div>
           <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(38px,4vw,58px)", lineHeight: 0.95, color: WHITE, marginBottom: 24, letterSpacing: 0.5 }}>
-            A 30-MINUTE CALL THAT<br />CHANGES HOW YOU <span style={{ color: O }}>GET LEADS.</span>
+            {cms("left_panel","headline","A 30-MINUTE CALL THAT\nCHANGES HOW YOU GET LEADS.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
           </h2>
           <p style={{ fontSize: 16, lineHeight: 1.75, color: MUTED, fontWeight: 300, marginBottom: 40 }}>
-            Fill in the form, pick a time that works, and we&apos;ll show up ready. We&apos;ll have already reviewed your business and your industry — so the conversation starts where it matters.<br /><br />
-            <strong style={{ color: WHITE, fontWeight: 500 }}>No generic decks. No recycled pitches.</strong> Just a focused conversation about what a system built specifically for your business would look like — and what it would realistically deliver.
+            {cms("left_panel","body_1","Fill in the form, pick a time that works, and we'll show up ready. We'll have already reviewed your business and your industry — so the conversation starts where it matters.")}<br /><br />
+            {cms("left_panel","body_2","No generic decks. No recycled pitches. Just a focused conversation about what a system built specifically for your business would look like — and what it would realistically deliver.")}
           </p>
 
           {/* Steps */}
@@ -320,12 +340,12 @@ export default function ContactPage() {
         <div style={{ maxWidth: 1300, margin: "0 auto" }}>
           <div className="reveal" style={{ marginBottom: 48 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-              Pick Your Time<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("calendar","eyebrow","Pick Your Time")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(38px,4.5vw,62px)", lineHeight: 0.95, color: WHITE, letterSpacing: 0.5 }}>
-              CHOOSE A TIME THAT<br />WORKS FOR <span style={{ color: O }}>YOU.</span>
+              {cms("calendar","headline","CHOOSE A TIME THAT\nWORKS FOR YOU.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
-            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.6, maxWidth: 560, marginTop: 16 }}>All calls are 30 minutes via Zoom or Google Meet. Pick a slot below and you&apos;ll receive an instant confirmation with the meeting link.</p>
+            <p style={{ fontSize: 16, color: MUTED, fontWeight: 300, lineHeight: 1.6, maxWidth: 560, marginTop: 16 }}>{cms("calendar","subheadline","All calls are 30 minutes via Zoom or Google Meet. Pick a slot below and you'll receive an instant confirmation with the meeting link.")}</p>
           </div>
 
           {/* Calendar embed placeholder */}
@@ -347,10 +367,10 @@ export default function ContactPage() {
         <div style={{ maxWidth: 860, margin: "0 auto" }}>
           <div className="reveal">
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: "uppercase" as const, color: O, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              Before You Book<span style={{ display: "block", height: 1, width: 40, background: O }} />
+              {cms("faq","eyebrow","Before You Book")}<span style={{ display: "block", height: 1, width: 40, background: O }} />
             </div>
             <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(36px,4vw,58px)", lineHeight: 0.95, color: WHITE, marginBottom: 48, letterSpacing: 0.5 }}>
-              A FEW THINGS<br />PEOPLE USUALLY ASK.
+              {cms("faq","headline","A FEW THINGS\nPEOPLE USUALLY ASK.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
             </h2>
           </div>
           <div className="reveal">
