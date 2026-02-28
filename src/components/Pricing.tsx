@@ -1,5 +1,3 @@
-import { CheckCircle, Star } from "lucide-react";
-
 const plans = [
   {
     name: "The Drop",
@@ -51,56 +49,46 @@ const plans = [
 
 export default function Pricing() {
   return (
-    <section id="pricing" className="bg-black py-24 px-6">
-      <div className="max-w-6xl mx-auto">
-        <p className="text-orange-500 font-bold text-xs uppercase tracking-widest mb-4 text-center">Packages</p>
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-4 text-center leading-tight">
-          Choose What Works For{" "}
-          <span className="bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-            Your Business
-          </span>
-        </h2>
-        <p className="text-gray-400 text-lg text-center max-w-xl mx-auto mb-16">
-          Start with one service or go full system. We&apos;ll recommend what makes the most sense after your strategy call.
-        </p>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+    <section id="packages" style={{ background: "#0A0A0A", padding: "100px 48px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="reveal">
+          <div className="section-label">Packages</div>
+          <h2 className="section-headline">CHOOSE WHAT WORKS<br />FOR YOUR BUSINESS.</h2>
+        </div>
+        <div className="reveal" style={{
+          display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr",
+          gap: 2, background: "#222222", marginTop: 60,
+          alignItems: "start",
+        }}>
           {plans.map((plan) => (
-            <div key={plan.name}
-              className={`relative rounded-3xl p-8 flex flex-col h-full ${
-                plan.featured
-                  ? "bg-gradient-to-br from-orange-500 to-orange-700 shadow-2xl shadow-orange-500/30 scale-105"
-                  : "bg-white/5 border border-white/10"
-              }`}>
+            <div key={plan.name} style={{
+              background: plan.featured ? "#181818" : "#111111",
+              padding: "48px 36px",
+              position: "relative",
+              border: plan.featured ? "1px solid #FF5C00" : "none",
+              borderTop: plan.featured ? "3px solid #FF5C00" : undefined,
+              transform: plan.featured ? "scale(1.02)" : undefined,
+              zIndex: plan.featured ? 2 : undefined,
+            }}>
               {plan.featured && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <div className="flex items-center gap-1.5 bg-yellow-400 text-yellow-900 font-black text-xs px-4 py-1.5 rounded-full">
-                    <Star className="h-3 w-3 fill-yellow-900" /> Most Popular
-                  </div>
-                </div>
+                <div style={{
+                  display: "inline-block", background: "#FF5C00", color: "#0A0A0A",
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase",
+                  padding: "5px 12px", marginBottom: 24,
+                }}>★ Most Popular</div>
               )}
-
-              <div className={`text-xs font-bold uppercase tracking-widest mb-3 ${plan.featured ? "text-orange-100" : plan.color === "green" ? "text-green-400" : "text-orange-400"}`}>
-                {plan.tag}
-              </div>
-              <h3 className={`text-2xl font-black mb-2 ${plan.featured ? "text-white" : "text-white"}`}>{plan.name}</h3>
-              <p className={`text-sm mb-8 ${plan.featured ? "text-orange-100" : "text-gray-400"}`}>{plan.tagline}</p>
-
-              <ul className="space-y-3 mb-10 flex-1">
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, letterSpacing: 1, color: "#F5F2ED", marginBottom: 8 }}>{plan.name}</div>
+              <div style={{ fontSize: 14, color: "#888880", marginBottom: 32, fontWeight: 300, lineHeight: 1.5 }}>{plan.tagline}</div>
+              <div style={{ height: 1, background: "#222222", marginBottom: 28 }} />
+              <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: 14, marginBottom: 40 }}>
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm">
-                    <CheckCircle className={`h-4 w-4 mt-0.5 shrink-0 ${plan.featured ? "text-orange-100" : plan.color === "green" ? "text-green-400" : "text-orange-400"}`} />
-                    <span className={plan.featured ? "text-orange-50" : "text-gray-300"}>{f}</span>
+                  <li key={f} style={{ fontSize: 14, color: "#F5F2ED", fontWeight: 300, display: "flex", gap: 10, alignItems: "flex-start", lineHeight: 1.4 }}>
+                    <span style={{ color: "#FF5C00", fontWeight: 600, flexShrink: 0 }}>✓</span>{f}
                   </li>
                 ))}
               </ul>
-
-              <a href="#contact"
-                className={`block text-center font-black text-sm py-4 px-6 rounded-2xl transition-all ${
-                  plan.featured
-                    ? "bg-white text-orange-600 hover:bg-orange-50"
-                    : "bg-orange-500 hover:bg-orange-600 text-white"
-                }`}>
+              <a href="#contact" className={plan.featured ? "btn-primary" : "btn-secondary"}
+                style={{ width: "100%", textAlign: "center", display: "block", fontSize: 15, padding: 14 }}>
                 {plan.cta}
               </a>
             </div>

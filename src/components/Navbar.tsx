@@ -1,44 +1,56 @@
 "use client";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10">
-      <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-        <a href="#" className="text-xl font-black text-white tracking-tight">
-          Hey<span className="text-orange-500">More</span>Leads
-        </a>
-        <div className="hidden md:flex items-center gap-8">
-          {["Services", "How It Works", "Pricing", "FAQ"].map((item) => (
-            <a key={item} href={`#${item.toLowerCase().replace(/\s+/g, "-")}`}
-              className="text-sm text-gray-300 hover:text-orange-400 transition-colors font-medium">
-              {item}
-            </a>
-          ))}
-        </div>
-        <a href="#contact"
-          className="hidden md:inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm px-5 py-2.5 rounded-full transition-colors">
-          Book Free Call →
-        </a>
-        <button onClick={() => setOpen(!open)} className="md:hidden text-white">
-          {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+    <nav style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+      padding: "20px 48px", display: "flex", alignItems: "center",
+      justifyContent: "space-between",
+      background: "rgba(10,10,10,0.85)", backdropFilter: "blur(12px)",
+      borderBottom: "1px solid rgba(255,92,0,0.1)",
+    }}>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 2, color: "#F5F2ED" }}>
+        HEY<span style={{ color: "#FF5C00" }}>.</span>MORE LEADS
       </div>
+      <ul style={{ listStyle: "none", display: "flex", gap: 36, margin: 0, padding: 0 }} className="hidden md:flex">
+        {[["#services", "Services"], ["#how", "How It Works"], ["#packages", "Packages"], ["#faq", "FAQ"]].map(([href, label]) => (
+          <li key={label}>
+            <a href={href} style={{ color: "#888880", textDecoration: "none", fontSize: 13, fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase", transition: "color 0.2s" }}
+              onMouseOver={e => (e.currentTarget.style.color = "#F5F2ED")}
+              onMouseOut={e => (e.currentTarget.style.color = "#888880")}>
+              {label}
+            </a>
+          </li>
+        ))}
+        <li>
+          <a href="#contact" className="nav-cta" style={{
+            background: "#FF5C00", color: "#0A0A0A", padding: "10px 24px",
+            borderRadius: 2, fontWeight: 600, letterSpacing: "0.5px", textDecoration: "none",
+            fontSize: 13, textTransform: "uppercase", transition: "background 0.2s",
+          }}
+            onMouseOver={e => (e.currentTarget.style.background = "#FF7A25")}
+            onMouseOut={e => (e.currentTarget.style.background = "#FF5C00")}>
+            Get Started
+          </a>
+        </li>
+      </ul>
+      <button onClick={() => setOpen(!open)} className="md:hidden" style={{ background: "none", border: "none", color: "#F5F2ED", fontSize: 24, cursor: "pointer" }}>
+        {open ? "✕" : "☰"}
+      </button>
       {open && (
-        <div className="md:hidden bg-black border-t border-white/10 px-6 py-4 flex flex-col gap-4">
-          {["Services", "How It Works", "Pricing", "FAQ"].map((item) => (
-            <a key={item} href={`#${item.toLowerCase().replace(/\s+/g, "-")}`}
-              onClick={() => setOpen(false)}
-              className="text-sm text-gray-300 hover:text-orange-400 font-medium">
-              {item}
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0,
+          background: "#111111", borderBottom: "1px solid #222222",
+          padding: "20px 48px", display: "flex", flexDirection: "column", gap: 16,
+        }}>
+          {[["#services", "Services"], ["#how", "How It Works"], ["#packages", "Packages"], ["#faq", "FAQ"], ["#contact", "Get Started"]].map(([href, label]) => (
+            <a key={label} href={href} onClick={() => setOpen(false)}
+              style={{ color: "#888880", textDecoration: "none", fontSize: 14, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              {label}
             </a>
           ))}
-          <a href="#contact" onClick={() => setOpen(false)}
-            className="bg-orange-500 text-white font-bold text-sm px-5 py-2.5 rounded-full text-center">
-            Book Free Call →
-          </a>
         </div>
       )}
     </nav>

@@ -1,106 +1,124 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight, MessageCircle, Loader2, CheckCircle } from "lucide-react";
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.1)", borderRadius: 2,
+  padding: "12px 16px", color: "#F5F2ED", fontSize: 15,
+  fontFamily: "'DM Sans',sans-serif", outline: "none",
+  marginBottom: 16, boxSizing: "border-box",
+};
 
 export default function FinalCTA() {
-  const [form, setForm] = useState({ name: "", email: "", whatsapp: "", business: "" });
+  const [form, setForm] = useState({ name: "", email: "", whatsapp: "", business_type: "" });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setSubmitted(true);
-    setLoading(false);
+    setError("");
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Submission failed");
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <section id="contact" className="bg-zinc-950 py-24 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-          {/* Left — Copy */}
-          <div>
-            <p className="text-orange-500 font-bold text-xs uppercase tracking-widest mb-4">Ready to Start?</p>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-6 leading-tight">
-              Stop Waiting For Leads.{" "}
-              <span className="bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                Start Getting Them.
-              </span>
-            </h2>
-            <p className="text-gray-400 text-lg leading-relaxed mb-8">
-              Book a free strategy call and we&apos;ll show you exactly how to put this system to work for your business — in days, not months.
-            </p>
-            <p className="text-gray-500 text-sm mb-8">
-              No pressure. No hard sell. Just a straight conversation about whether we&apos;re the right fit and what results you can realistically expect.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <a href="https://calendly.com" target="_blank" rel="noopener noreferrer"
-                className="group flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-base px-7 py-4 rounded-full transition-all shadow-lg shadow-orange-500/30">
-                Book My Free Strategy Call
-                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </a>
-              <a href="https://wa.me/1234567890" target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 border border-green-500/40 text-green-400 hover:bg-green-500/10 font-semibold text-base px-7 py-4 rounded-full transition-all">
-                <MessageCircle className="h-5 w-5" />
-                Chat on WhatsApp
-              </a>
-            </div>
-          </div>
-
-          {/* Right — Lead form */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-            {submitted ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <CheckCircle className="h-8 w-8 text-green-400" />
-                </div>
-                <h3 className="text-white font-black text-xl">You&apos;re in the queue!</h3>
-                <p className="text-gray-400 text-sm max-w-xs">We&apos;ll be in touch within 24 hours to schedule your free strategy call.</p>
-              </div>
-            ) : (
-              <>
-                <h3 className="text-white font-black text-xl mb-2">Get a Free Strategy Session</h3>
-                <p className="text-gray-400 text-sm mb-6">Fill in your details and we&apos;ll reach out to book your call.</p>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Full Name *</label>
-                    <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="John Smith"
-                      className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/60 focus:bg-white/15 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Email Address *</label>
-                    <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="john@company.com"
-                      className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/60 focus:bg-white/15 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">WhatsApp Number</label>
-                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                      placeholder="+1 555 000 0000"
-                      className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/60 focus:bg-white/15 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Business Type *</label>
-                    <select required value={form.business} onChange={(e) => setForm({ ...form, business: e.target.value })}
-                      className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500/60 focus:bg-white/15 transition-all">
-                      <option value="" className="bg-zinc-900">Select your industry…</option>
-                      {["Real Estate", "Finance / Insurance", "Professional Services", "Home Services", "Coaching / Consulting", "Healthcare", "Other"].map((o) => (
-                        <option key={o} value={o} className="bg-zinc-900">{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <button type="submit" disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-black text-sm py-4 rounded-xl transition-all mt-2">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    {loading ? "Sending…" : "Book My Free Strategy Call →"}
-                  </button>
-                </form>
-              </>
-            )}
-          </div>
+    <section id="contact" style={{
+      background: "#111111", padding: "140px 48px",
+      textAlign: "center", position: "relative", overflow: "hidden",
+    }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(ellipse at center, rgba(255,92,0,0.08) 0%, transparent 70%)",
+        pointerEvents: "none",
+      }} />
+      <div className="reveal" style={{ position: "relative", zIndex: 1 }}>
+        <div className="section-label" style={{ justifyContent: "center" }}>Ready?</div>
+        <h2 style={{
+          fontFamily: "'Bebas Neue',sans-serif",
+          fontSize: "clamp(56px, 8vw, 120px)",
+          lineHeight: 0.9, color: "#F5F2ED",
+          marginBottom: 24, letterSpacing: 1,
+        }}>
+          STOP WAITING<br />FOR <span style={{ color: "#FF5C00" }}>LEADS.</span><br />START GETTING THEM.
+        </h2>
+        <p style={{ fontSize: 18, color: "#888880", maxWidth: 560, margin: "0 auto 48px", lineHeight: 1.6, fontWeight: 300 }}>
+          Book a free strategy call and we&apos;ll show you exactly how to put this system to work — in days, not months. No pressure. No hard sell.
+        </p>
+        <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 60 }}>
+          <a href="#" className="btn-primary">Book My Free Strategy Call →</a>
+          <a href="#" className="btn-secondary">Chat With Us On WhatsApp →</a>
         </div>
+
+        {!submitted ? (
+          <form onSubmit={handleSubmit} style={{
+            maxWidth: 480, margin: "0 auto",
+            background: "#181818", border: "1px solid #222222",
+            borderRadius: 4, padding: "40px 36px", textAlign: "left",
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#FF5C00", marginBottom: 20 }}>Or get a callback</div>
+
+            <input
+              required placeholder="Full Name *" style={inputStyle}
+              value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+            />
+            <input
+              required type="email" placeholder="Email Address *" style={inputStyle}
+              value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+            />
+            <input
+              placeholder="WhatsApp Number" style={inputStyle}
+              value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })}
+            />
+            <select
+              required style={{ ...inputStyle, marginBottom: 24 }}
+              value={form.business_type} onChange={e => setForm({ ...form, business_type: e.target.value })}
+            >
+              <option value="">Business Type *</option>
+              {["Real Estate", "Finance / Insurance", "Professional Services", "Home Services", "Coaching / Consulting", "Healthcare", "Other"].map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+
+            {error && (
+              <div style={{ fontSize: 13, color: "#FF5C00", marginBottom: 16, padding: "10px 14px", background: "rgba(255,92,0,0.08)", borderRadius: 2 }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit" disabled={loading} className="btn-primary"
+              style={{ width: "100%", textAlign: "center", fontSize: 16, opacity: loading ? 0.7 : 1, cursor: loading ? "wait" : "pointer" }}
+            >
+              {loading ? "Sending…" : "Request a Callback →"}
+            </button>
+          </form>
+        ) : (
+          <div style={{
+            maxWidth: 480, margin: "0 auto",
+            background: "#181818", border: "1px solid rgba(255,92,0,0.3)",
+            borderRadius: 4, padding: "40px 36px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 48, color: "#FF5C00", marginBottom: 12 }}>✓</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: "#FF5C00", marginBottom: 12 }}>YOU&apos;RE IN!</div>
+            <p style={{ fontSize: 15, color: "#888880", fontWeight: 300, lineHeight: 1.6 }}>
+              We&apos;ll be in touch within 24 hours to schedule your free strategy call.
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

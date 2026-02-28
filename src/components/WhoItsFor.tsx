@@ -1,60 +1,50 @@
-import { CheckCircle, XCircle } from "lucide-react";
-
-const forYou = [
-  "You're tired of cold calling and getting ignored",
-  "You're spending money on ads with inconsistent results",
-  "You have a great offer but not enough people hearing about it",
-  "You want a system that works even when you're not working",
-  "You're ready to scale, not dabble",
-];
-
-const notForYou = [
-  "You're not serious about growth",
-  "You want a magic button with no strategy behind it",
-  "You're not prepared to handle more leads than you currently have",
-];
-
 export default function WhoItsFor() {
   return (
-    <section className="bg-black py-24 px-6">
-      <div className="max-w-6xl mx-auto">
-        <p className="text-orange-500 font-bold text-xs uppercase tracking-widest mb-4 text-center">Is This For You?</p>
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-4 text-center leading-tight max-w-4xl mx-auto">
-          Hey More Leads Is Built For Business Owners Who Are{" "}
-          <span className="bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-            Done Waiting For Leads To Show Up.
-          </span>
-        </h2>
-        <p className="text-gray-400 text-lg text-center max-w-xl mx-auto mb-16">
-          Be honest with yourself. This is for the serious ones.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* For you */}
-          <div className="bg-green-500/5 border border-green-500/20 rounded-3xl p-8">
-            <h3 className="text-green-400 font-black text-lg mb-6 flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" /> This IS for you if:
-            </h3>
-            <ul className="space-y-4">
-              {forYou.map((item) => (
-                <li key={item} className="flex items-start gap-3 text-gray-300 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-400 mt-0.5 shrink-0" />
-                  {item}
+    <section style={{ background: "#111111", padding: "100px 48px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="reveal">
+          <div className="section-label">Is This For You?</div>
+          <h2 className="section-headline">BUILT FOR OWNERS WHO ARE<br />DONE WAITING FOR LEADS.</h2>
+        </div>
+        <div className="reveal" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, background: "#222222", marginTop: 60 }}>
+          {/* YES */}
+          <div style={{ background: "#181818", padding: "48px 40px" }}>
+            <div style={{
+              fontFamily: "'Barlow Condensed',sans-serif", fontSize: 24, fontWeight: 700,
+              textTransform: "uppercase", letterSpacing: 1, marginBottom: 28,
+              paddingBottom: 16, borderBottom: "2px solid #FF5C00",
+              color: "#F5F2ED", display: "flex", alignItems: "center", gap: 12,
+            }}>✓ &nbsp;This is for you if...</div>
+            <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+              {[
+                "You’re tired of cold calling and getting ignored",
+                "You’re spending on ads with inconsistent results",
+                "You have a great offer but not enough people hearing it",
+                "You want a system that works even when you’re not working",
+                "You’re ready to scale — not dabble",
+              ].map((item) => (
+                <li key={item} style={{ fontSize: 15, color: "#F5F2ED", fontWeight: 300, display: "flex", gap: 14, alignItems: "flex-start", lineHeight: 1.5 }}>
+                  <span style={{ color: "#FF5C00", fontSize: 16, fontWeight: 700, flexShrink: 0 }}>→</span>{item}
                 </li>
               ))}
             </ul>
           </div>
-
-          {/* Not for you */}
-          <div className="bg-red-500/5 border border-red-500/20 rounded-3xl p-8">
-            <h3 className="text-red-400 font-black text-lg mb-6 flex items-center gap-2">
-              <XCircle className="h-5 w-5" /> This is NOT for you if:
-            </h3>
-            <ul className="space-y-4">
-              {notForYou.map((item) => (
-                <li key={item} className="flex items-start gap-3 text-gray-300 text-sm">
-                  <XCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-                  {item}
+          {/* NO */}
+          <div style={{ background: "#181818", padding: "48px 40px" }}>
+            <div style={{
+              fontFamily: "'Barlow Condensed',sans-serif", fontSize: 24, fontWeight: 700,
+              textTransform: "uppercase", letterSpacing: 1, marginBottom: 28,
+              paddingBottom: 16, borderBottom: "2px solid #222222",
+              color: "#F5F2ED", display: "flex", alignItems: "center", gap: 12,
+            }}>✕ &nbsp;This is NOT for you if...</div>
+            <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+              {[
+                "You’re not serious about growth",
+                "You want a magic button with no strategy behind it",
+                "You’re not prepared to handle more leads than you currently get",
+              ].map((item) => (
+                <li key={item} style={{ fontSize: 15, color: "#F5F2ED", fontWeight: 300, display: "flex", gap: 14, alignItems: "flex-start", lineHeight: 1.5 }}>
+                  <span style={{ color: "#888880", fontSize: 16, fontWeight: 700, flexShrink: 0 }}>—</span>{item}
                 </li>
               ))}
             </ul>

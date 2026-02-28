@@ -1,10 +1,12 @@
+"use client";
+import { useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
+import Combo from "@/components/Combo";
 import Problem from "@/components/Problem";
 import Services from "@/components/Services";
-import Combo from "@/components/Combo";
-import Pricing from "@/components/Pricing";
 import Process from "@/components/Process";
+import Pricing from "@/components/Pricing";
 import WhoItsFor from "@/components/WhoItsFor";
 import Testimonials from "@/components/Testimonials";
 import FAQ from "@/components/FAQ";
@@ -12,15 +14,28 @@ import FinalCTA from "@/components/FinalCTA";
 import Footer from "@/components/Footer";
 
 export default function Home() {
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("visible");
+        });
+      },
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <main className="bg-black">
+    <main>
       <Navbar />
       <Hero />
+      <Combo />
       <Problem />
       <Services />
-      <Combo />
-      <Pricing />
       <Process />
+      <Pricing />
       <WhoItsFor />
       <Testimonials />
       <FAQ />

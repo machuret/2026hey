@@ -1,77 +1,111 @@
 "use client";
-import { PhoneCall, MessageCircle, ArrowRight, ChevronDown } from "lucide-react";
 
 export default function Hero() {
   return (
-    <section className="relative min-h-screen bg-black flex flex-col items-center justify-center text-center px-6 pt-20 overflow-hidden">
-      {/* Background glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-orange-500/10 blur-[120px]" />
-      </div>
+    <section style={{
+      minHeight: "100vh",
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      alignItems: "center",
+      padding: "120px 48px 80px",
+      position: "relative",
+      overflow: "hidden",
+      background: "#0A0A0A",
+    }}>
+      {/* Glow */}
+      <div style={{
+        position: "absolute", right: -100, top: "50%", transform: "translateY(-50%)",
+        width: 700, height: 700,
+        background: "radial-gradient(circle, rgba(255,92,0,0.12) 0%, transparent 70%)",
+        pointerEvents: "none",
+      }} />
 
-      <div className="relative z-10 max-w-5xl mx-auto">
-        {/* Eyebrow */}
-        <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full mb-8">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-          Done-For-You Lead Generation. No Cold Calls. No Ad Spend.
+      {/* LEFT — CONTENT */}
+      <div>
+        <div className="anim-fade-up" style={{
+          display: "inline-flex", alignItems: "center", gap: 10,
+          fontSize: 12, fontWeight: 600, letterSpacing: 2,
+          textTransform: "uppercase", color: "#FF5C00", marginBottom: 24,
+        }}>
+          <span style={{ display: "block", width: 32, height: 2, background: "#FF5C00" }} />
+          Done-For-You Lead Generation
         </div>
 
-        {/* Headline */}
-        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight tracking-tight mb-6">
-          Your Next 10 Clients Are{" "}
-          <span className="bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-            Already In Someone&apos;s Voicemail.
-          </span>{" "}
-          We Put You There.
+        <h1 className="anim-fade-up-1" style={{
+          fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: "clamp(64px, 8vw, 110px)",
+          lineHeight: 0.92,
+          letterSpacing: 1,
+          color: "#F5F2ED",
+          marginBottom: 32,
+        }}>
+          YOUR NEXT<br />
+          10 CLIENTS<br />
+          ARE IN A<br />
+          <span style={{ color: "#FF5C00" }}>VOICEMAIL.</span>
         </h1>
 
-        {/* Subheadline */}
-        <p className="text-lg sm:text-xl text-gray-400 max-w-3xl mx-auto mb-10 leading-relaxed">
-          We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with qualified, appointment-ready prospects — without lifting a finger.
+        <p className="anim-fade-up-2" style={{
+          fontSize: 18, lineHeight: 1.6, color: "#888880",
+          maxWidth: 480, marginBottom: 48, fontWeight: 300,
+        }}>
+          We combine Ringless Voicemail Drops and AI-powered WhatsApp Agents to fill your pipeline with appointment-ready prospects — without you lifting a finger.
         </p>
 
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-          <a href="#contact"
-            className="group flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-lg px-8 py-4 rounded-full transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50">
-            Get More Leads Now
-            <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-          </a>
-          <a href="#services"
-            className="flex items-center gap-2 border border-white/20 hover:border-orange-500/50 text-white hover:text-orange-400 font-semibold text-lg px-8 py-4 rounded-full transition-all">
-            See How It Works
-          </a>
-        </div>
-
-        {/* Two service pills */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 text-gray-300 text-sm font-medium px-5 py-2.5 rounded-full">
-            <PhoneCall className="h-4 w-4 text-orange-400" />
-            Ringless Voicemail Drops
-          </div>
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 text-gray-300 text-sm font-medium px-5 py-2.5 rounded-full">
-            <MessageCircle className="h-4 w-4 text-green-400" />
-            AI WhatsApp Agent
-          </div>
-        </div>
-
-        {/* Social proof quotes */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl mx-auto">
-          {[
-            "We went from 3 leads a week to 27 in the first month.",
-            "Our WhatsApp agent booked 14 appointments while we slept.",
-            "Best ROI we've had from any marketing service. Period.",
-          ].map((quote, i) => (
-            <div key={i} className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-gray-400 italic text-left">
-              &ldquo;{quote}&rdquo;
-            </div>
-          ))}
+        <div className="anim-fade-up-3" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <a href="#contact" className="btn-primary">Get More Leads Now →</a>
+          <a href="#how" className="btn-secondary">See How It Works</a>
         </div>
       </div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-gray-600 animate-bounce">
-        <ChevronDown className="h-6 w-6" />
+      {/* RIGHT — DASHBOARD CARD */}
+      <div className="anim-fade-in" style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
+        <div style={{
+          background: "#181818", border: "1px solid rgba(255,92,0,0.2)",
+          borderRadius: 4, padding: 32, width: 340, position: "relative",
+        }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "#FF5C00" }} />
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#FF5C00", marginBottom: 20 }}>Live Campaign Dashboard</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 24 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 64, lineHeight: 1, color: "#F5F2ED" }}>247</div>
+            <div style={{ fontSize: 14, color: "#888880", fontWeight: 300 }}>voicemails<br />delivered today</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[
+              { color: "#FF5C00", text: "RVM drop delivered — Michael T.", time: "2m ago", cls: "anim-pulse" },
+              { color: "#4ADE80", text: "WhatsApp lead qualified ✓", time: "6m ago", cls: "anim-pulse-1" },
+              { color: "#60A5FA", text: "Appointment booked — Sarah K.", time: "12m ago", cls: "anim-pulse-2" },
+            ].map((item, i) => (
+              <div key={i} className={item.cls} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 16px", background: "#222222", borderRadius: 2,
+                fontSize: 13, color: "#F5F2ED",
+              }}>
+                <div className="anim-blink" style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, flexShrink: 0 }} />
+                <span>{item.text}</span>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: "#888880" }}>{item.time}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Floating badges */}
+        <div className="anim-float" style={{
+          position: "absolute", top: -30, right: -60,
+          background: "#181818", border: "1px solid rgba(255,92,0,0.2)",
+          borderRadius: 4, padding: "14px 18px", fontSize: 12, whiteSpace: "nowrap",
+        }}>
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#FF5C00", display: "block", lineHeight: 1 }}>94%</span>
+          <span style={{ fontSize: 11, color: "#888880", display: "block", marginTop: 2 }}>Listen Rate</span>
+        </div>
+        <div className="anim-float-delayed" style={{
+          position: "absolute", bottom: -30, left: -60,
+          background: "#181818", border: "1px solid rgba(255,92,0,0.2)",
+          borderRadius: 4, padding: "14px 18px", fontSize: 12, whiteSpace: "nowrap",
+        }}>
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#FF5C00", display: "block", lineHeight: 1 }}>3.2×</span>
+          <span style={{ fontSize: 11, color: "#888880", display: "block", marginTop: 2 }}>Avg ROI</span>
+        </div>
       </div>
     </section>
   );

@@ -1,31 +1,29 @@
 export default function Footer() {
   return (
-    <footer className="bg-black border-t border-white/10 py-12 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
-          <a href="#" className="text-2xl font-black text-white tracking-tight">
-            Hey<span className="text-orange-500">More</span>Leads
+    <footer style={{
+      background: "#0A0A0A",
+      borderTop: "1px solid #222222",
+      padding: "40px 48px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 20,
+    }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, color: "#888880" }}>
+        HEY<span style={{ color: "#FF5C00" }}>.</span>MORE LEADS
+      </div>
+      <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
+        {[["#", "Home"], ["#services", "Services"], ["#how", "How It Works"], ["#packages", "Packages"], ["#contact", "Contact"], ["#", "Privacy Policy"], ["#", "Terms"]].map(([href, label]) => (
+          <a key={label} href={href} style={{ fontSize: 12, color: "#888880", textDecoration: "none", letterSpacing: 0.5, transition: "color 0.2s" }}
+            onMouseOver={e => (e.currentTarget.style.color = "#F5F2ED")}
+            onMouseOut={e => (e.currentTarget.style.color = "#888880")}>
+            {label}
           </a>
-          <nav className="flex flex-wrap items-center justify-center gap-6">
-            {["Home", "Services", "How It Works", "Pricing", "Contact"].map((link) => (
-              <a key={link} href={`#${link.toLowerCase().replace(/\s+/g, "-")}`}
-                className="text-sm text-gray-500 hover:text-orange-400 transition-colors">
-                {link}
-              </a>
-            ))}
-          </nav>
-        </div>
-
-        <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-gray-600 text-sm text-center md:text-left">
-            <span className="text-gray-400 font-semibold">Hey More Leads</span> — More Conversations. More Closings. More Revenue.
-          </p>
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Terms</a>
-            <p className="text-xs text-gray-700">© {new Date().getFullYear()} Hey More Leads. All rights reserved.</p>
-          </div>
-        </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: "#222222", letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>
+        More Conversations. More Closings. More Revenue.
       </div>
     </footer>
   );
