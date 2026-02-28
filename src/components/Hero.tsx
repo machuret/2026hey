@@ -20,6 +20,33 @@ function useCMS(page: string) {
   return (section: string, field: string, fallback: string) => c?.[section]?.[field] ?? fallback;
 }
 
+const CYCLING_WORDS = ["VOICEMAIL.", "PIPELINE.", "INBOX.", "CALLBACK.", "RESULTS."];
+
+function CyclingWord() {
+  const [index, setIndex] = useState(0);
+  const [phase, setPhase] = useState<"in" | "out">("in");
+
+  useEffect(() => {
+    const outTimer = setTimeout(() => setPhase("out"), 2200);
+    const nextTimer = setTimeout(() => {
+      setIndex(i => (i + 1) % CYCLING_WORDS.length);
+      setPhase("in");
+    }, 2600);
+    return () => { clearTimeout(outTimer); clearTimeout(nextTimer); };
+  }, [index]);
+
+  return (
+    <span style={{ position: "relative", display: "inline-block", overflow: "hidden", verticalAlign: "bottom" }}>
+      <span style={{ visibility: "hidden", display: "inline-block" }}>VOICEMAIL.</span>
+      <span key={index} className={phase === "in" ? "word-in" : "word-out"} style={{
+        position: "absolute", left: 0, top: 0, color: "#FF5C00", whiteSpace: "nowrap",
+      }}>
+        {CYCLING_WORDS[index]}
+      </span>
+    </span>
+  );
+}
+
 export default function Hero() {
   const cms = useCMS("home");
   return (
@@ -60,7 +87,10 @@ export default function Hero() {
           color: "#F5F2ED",
           marginBottom: 32,
         }}>
-          {cms("hero","headline","YOUR NEXT\n10 CLIENTS\nARE IN A\nVOICEMAIL.").split("\n").map((l,i,a)=><span key={i}>{l}{i<a.length-1&&<br/>}</span>)}
+          YOUR NEXT<br />
+          10 CLIENTS<br />
+          ARE IN A<br />
+          <CyclingWord />
         </h1>
 
         <p className="anim-fade-up-2" style={{

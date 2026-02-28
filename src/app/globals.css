@@ -127,6 +127,16 @@ body::before {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes wordSlideIn {
+  from { opacity: 0; transform: translateY(60px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes wordSlideOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-60px); }
+}
+.word-in  { animation: wordSlideIn  0.45s cubic-bezier(0.22,1,0.36,1) forwards; }
+.word-out { animation: wordSlideOut 0.35s cubic-bezier(0.55,0,1,0.45) forwards; }
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
