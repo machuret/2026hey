@@ -38,13 +38,13 @@ export default function Navbar({ activePage = "" }: { activePage?: string }) {
           </li>
         ))}
         <li>
-          <a href="/#contact" style={{
-            background: "#FF5C00", color: "#0A0A0A", padding: "10px 24px",
+          <a href="/contact" style={{
+            background: activePage === "contact" ? "#FF7A25" : "#FF5C00", color: "#0A0A0A", padding: "10px 24px",
             borderRadius: 2, fontWeight: 600, letterSpacing: "0.5px", textDecoration: "none",
             fontSize: 13, textTransform: "uppercase", transition: "background 0.2s",
           }}
             onMouseOver={e => (e.currentTarget.style.background = "#FF7A25")}
-            onMouseOut={e => (e.currentTarget.style.background = "#FF5C00")}>
+            onMouseOut={e => (e.currentTarget.style.background = activePage === "contact" ? "#FF7A25" : "#FF5C00")}>
             Get Started
           </a>
         </li>
