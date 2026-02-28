@@ -3,6 +3,8 @@ import { useState } from "react";
 
 const links: [string, string, string][] = [
   ["/#services", "Services", ""],
+  ["/ringless-voicemail", "Voicemail Drops", "ringless-voicemail"],
+  ["/whatsapp-agent", "WhatsApp AI", "whatsapp-agent"],
   ["/packages", "Packages", "packages"],
   ["/case-studies", "Case Studies", "case-studies"],
   ["/about", "About", "about"],
