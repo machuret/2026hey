@@ -57,7 +57,7 @@ const PROOF_STATS = [
 export default function Hero() {
   const cms = useCMS("home");
   return (
-    <section style={{
+    <section className="home-hero" style={{
       minHeight: "100vh",
       display: "flex",
       flexDirection: "column",
@@ -86,7 +86,7 @@ export default function Hero() {
       }} />
 
       {/* Eyebrow — lines both sides */}
-      <div className="anim-fade-up" style={{
+      <div className="anim-fade-up hero-eyebrow" style={{
         display: "inline-flex", alignItems: "center", gap: 14,
         fontSize: 12, fontWeight: 600, letterSpacing: 3,
         textTransform: "uppercase", color: "#FF5C00", marginBottom: 32,
@@ -130,7 +130,7 @@ export default function Hero() {
       </p>
 
       {/* CTAs */}
-      <div className="anim-fade-up-3" style={{
+      <div className="anim-fade-up-3 hero-ctas" style={{
         display: "flex", gap: 16, flexWrap: "wrap",
         justifyContent: "center", position: "relative", marginBottom: 80,
       }}>
@@ -139,7 +139,7 @@ export default function Hero() {
       </div>
 
       {/* Proof stats row */}
-      <div className="anim-fade-in" style={{
+      <div className="anim-fade-in proof-stats-row" style={{
         display: "flex", alignItems: "stretch",
         background: "#181818", border: "1px solid rgba(255,92,0,0.15)",
         position: "relative",

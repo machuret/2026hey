@@ -86,7 +86,7 @@ export default function RinglessVoicemailPage() {
       <Navbar activePage="ringless-voicemail" />
 
       {/* ── HERO ── */}
-      <section style={{
+      <section className="hero-2col" style={{
         minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr",
         alignItems: "center", padding: "120px 48px 80px",
         position: "relative", overflow: "hidden", background: DARK,
@@ -116,33 +116,33 @@ export default function RinglessVoicemailPage() {
         {/* Right — voicemail mockup */}
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
           {/* Float badges — 6 total */}
-          <div style={{ position: "absolute", top: -28, left: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out infinite" }}>
+          <div className="float-badge" style={{ position: "absolute", top: -28, left: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: O, display: "block", lineHeight: 1 }}>3,000</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 4 }}>Drops per month</span>
           </div>
-          <div style={{ position: "absolute", bottom: -28, right: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 2s infinite" }}>
+          <div className="float-badge" style={{ position: "absolute", bottom: -28, right: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 2s infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: O, display: "block", lineHeight: 1 }}>13%</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 4 }}>Avg callback rate</span>
           </div>
-          <div style={{ position: "absolute", top: -28, right: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 0.5s infinite" }}>
+          <div className="float-badge" style={{ position: "absolute", top: -28, right: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 0.5s infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: O, display: "block", lineHeight: 1 }}>98%</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 4 }}>Listen rate</span>
           </div>
-          <div style={{ position: "absolute", bottom: -28, left: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 1.5s infinite" }}>
+          <div className="float-badge" style={{ position: "absolute", bottom: -28, left: -80, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 1.5s infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: O, display: "block", lineHeight: 1 }}>75%</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 4 }}>Lower cost per lead</span>
           </div>
-          <div style={{ position: "absolute", top: "30%", left: -88, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 1s infinite" }}>
+          <div className="float-badge float-badge-mid" style={{ position: "absolute", top: "30%", left: -88, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 1s infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: O, display: "block", lineHeight: 1 }}>5×</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 4 }}>More replies vs cold call</span>
           </div>
-          <div style={{ position: "absolute", top: "30%", right: -88, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 2.5s infinite" }}>
+          <div className="float-badge float-badge-mid" style={{ position: "absolute", top: "30%", right: -88, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 6, padding: "14px 20px", whiteSpace: "nowrap", animation: "float 4s ease-in-out 2.5s infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: O, display: "block", lineHeight: 1 }}>100%</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 4 }}>Done for you</span>
           </div>
 
           {/* Mockup */}
-          <div style={{ width: 320, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 16, overflow: "hidden", boxShadow: "0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,92,0,0.06)" }}>
+          <div className="hero-mockup" style={{ width: 320, background: DARK2, border: `1px solid rgba(255,92,0,0.3)`, borderRadius: 16, overflow: "hidden", boxShadow: "0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,92,0,0.06)" }}>
             {/* Header */}
             <div style={{ background: DARK3, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${DARK4}` }}>
               <div>

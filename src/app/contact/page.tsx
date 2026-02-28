@@ -108,7 +108,7 @@ export default function ContactPage() {
       <Navbar activePage="contact" />
 
       {/* ── HERO ── */}
-      <section style={{
+      <section className="page-hero" style={{
         minHeight: "65vh", display: "flex", flexDirection: "column", justifyContent: "flex-end",
         padding: "140px 64px 88px", position: "relative", overflow: "hidden",
         background: DARK, borderBottom: `1px solid ${DARK3}`,

@@ -196,3 +196,176 @@ a:focus-visible, button:focus-visible {
   border-radius: 2px;
 }
 
+/* ─────────────────────────────────────────
+   RESPONSIVE — Tablet (≤ 1024px)
+───────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Hero proof stats — 2x2 on tablet */
+  .proof-stats-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100%;
+  }
+
+  /* Footer grid — 2 cols */
+  .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 32px !important;
+  }
+
+  /* RVM / WA hero — stack to single column */
+  .hero-2col {
+    grid-template-columns: 1fr !important;
+    padding: 120px 40px 60px !important;
+  }
+
+  /* RVM floating badges — hide outer ones */
+  .float-badge-mid { display: none !important; }
+
+  /* Section padding */
+  .section-inner { padding: 80px 40px !important; }
+}
+
+/* ─────────────────────────────────────────
+   RESPONSIVE — Mobile (≤ 768px)
+───────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* NAVBAR */
+  .nav-desktop { display: none !important; }
+  .nav-mobile-btn { display: block !important; }
+
+  /* HOME HERO */
+  .home-hero {
+    padding: 100px 24px 0 !important;
+    min-height: auto !important;
+  }
+  .home-hero h1 {
+    font-size: clamp(52px, 13vw, 80px) !important;
+    line-height: 0.9 !important;
+  }
+  .home-hero .hero-eyebrow { font-size: 10px !important; gap: 8px !important; }
+  .home-hero .hero-eyebrow span { width: 24px !important; }
+  .home-hero p { font-size: 16px !important; margin-bottom: 32px !important; }
+  .home-hero .hero-ctas { margin-bottom: 48px !important; }
+  .home-hero .hero-ctas a { width: 100%; text-align: center; }
+
+  /* Proof stats — stack to 2 col on mobile */
+  .proof-stats-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100%;
+  }
+  .proof-stats-row > div {
+    padding: 16px 20px !important;
+    min-width: unset !important;
+  }
+
+  /* RVM / WA PAGE HEROES */
+  .hero-2col {
+    grid-template-columns: 1fr !important;
+    padding: 100px 24px 48px !important;
+    min-height: auto !important;
+    gap: 48px !important;
+  }
+  .hero-2col h1 {
+    font-size: clamp(52px, 13vw, 80px) !important;
+    line-height: 0.9 !important;
+  }
+  /* Hide floating badges on mobile — they overflow */
+  .float-badge { display: none !important; }
+  /* Chat / voicemail mockup — constrain width */
+  .hero-mockup { width: 100% !important; max-width: 340px !important; margin: 0 auto !important; }
+
+  /* PAGE HEROES (about, packages, case-studies, contact) */
+  .page-hero {
+    padding: 100px 24px 60px !important;
+    min-height: auto !important;
+  }
+  .page-hero h1 {
+    font-size: clamp(48px, 12vw, 80px) !important;
+    line-height: 0.9 !important;
+  }
+
+  /* SECTION GRIDS — all collapse to 1 col */
+  .section-grid-2,
+  .section-grid-3,
+  .section-grid-4,
+  .section-grid-5 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* STATS BARS */
+  .stats-bar-4 { grid-template-columns: 1fr 1fr !important; }
+  .stats-bar-3 { grid-template-columns: 1fr !important; }
+
+  /* SERVICE CARDS grid */
+  .services-grid { grid-template-columns: 1fr !important; }
+
+  /* PACKAGES GRID */
+  .packages-grid {
+    grid-template-columns: 1fr !important;
+    gap: 2px !important;
+  }
+  .package-featured { transform: scale(1) !important; }
+
+  /* STEPS */
+  .steps-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* WHO cols */
+  .who-grid { grid-template-columns: 1fr !important; }
+
+  /* TESTIMONIALS */
+  .testimonials-grid { grid-template-columns: 1fr !important; }
+
+  /* FOOTER */
+  .footer-outer { padding: 32px 20px 24px !important; }
+  .footer-card { padding: 32px 24px 28px !important; }
+  .footer-grid {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+  .footer-brand { max-width: 100% !important; }
+
+  /* BTN — full width on mobile */
+  .btn-primary, .btn-secondary {
+    padding: 14px 24px !important;
+    font-size: 16px !important;
+  }
+
+  /* SECTION padding */
+  section { padding: 64px 24px !important; }
+
+  /* Proof bar */
+  .proof-bar { grid-template-columns: 1fr !important; padding: 0 !important; }
+  .proof-bar > div { padding: 24px 24px !important; }
+
+  /* Compare table — scrollable */
+  .compare-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Case study card inner */
+  .case-card-inner {
+    grid-template-columns: 1fr !important;
+  }
+  .case-card-inner > div:first-child {
+    padding: 32px 24px !important;
+  }
+  .case-card-inner > div:last-child {
+    padding: 32px 24px !important;
+  }
+}
+
+/* ─────────────────────────────────────────
+   RESPONSIVE — Small mobile (≤ 480px)
+───────────────────────────────────────── */
+@media (max-width: 480px) {
+  .home-hero h1 { font-size: clamp(44px, 14vw, 64px) !important; }
+  .hero-2col h1 { font-size: clamp(44px, 14vw, 64px) !important; }
+  .page-hero h1 { font-size: clamp(40px, 13vw, 60px) !important; }
+  .proof-stats-row { grid-template-columns: 1fr 1fr !important; }
+  .proof-stats-row > div { padding: 14px 16px !important; }
+  .steps-grid { grid-template-columns: 1fr !important; }
+  .stats-bar-4 { grid-template-columns: 1fr !important; }
+  nav { padding: 16px 20px !important; }
+  .footer-outer { padding: 24px 16px 16px !important; }
+}
+

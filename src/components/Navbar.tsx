@@ -62,7 +62,7 @@ export default function Navbar({ activePage = "" }: { activePage?: string }) {
       <a href="/" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 2, color: "#F5F2ED", textDecoration: "none" }}>
         HEY<span style={{ color: "#FF5C00" }}>.</span>MORE LEADS
       </a>
-      <ul style={{ listStyle: "none", display: "flex", gap: 36, margin: 0, padding: 0, alignItems: "center" }} className="hidden md:flex">
+      <ul className="nav-desktop" style={{ listStyle: "none", display: "flex", gap: 36, margin: 0, padding: 0, alignItems: "center" }}>
         {regular.map(item => {
           const page = pageFromHref(item.href);
           const isActive = activePage === page;
@@ -98,21 +98,27 @@ export default function Navbar({ activePage = "" }: { activePage?: string }) {
           );
         })}
       </ul>
-      <button onClick={() => setOpen(!open)} className="md:hidden" style={{ background: "none", border: "none", color: "#F5F2ED", fontSize: 24, cursor: "pointer" }}>
+      <button onClick={() => setOpen(!open)} className="nav-mobile-btn" style={{ background: "none", border: "none", color: "#F5F2ED", fontSize: 24, cursor: "pointer", display: "none" }}>
         {open ? "✕" : "☰"}
       </button>
       {open && (
         <div style={{
           position: "absolute", top: "100%", left: 0, right: 0,
           background: "#111111", borderBottom: "1px solid #222222",
-          padding: "20px 48px", display: "flex", flexDirection: "column", gap: 16,
+          padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20,
+          zIndex: 99,
         }}>
           {visible.map(item => (
             <a key={item.id} href={item.href}
               target={item.open_new_tab ? "_blank" : undefined}
               rel={item.open_new_tab ? "noopener noreferrer" : undefined}
               onClick={() => setOpen(false)}
-              style={{ color: item.is_cta ? "#FF5C00" : "#888880", textDecoration: "none", fontSize: 14, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              style={{
+                color: item.is_cta ? "#FF5C00" : "#F5F2ED",
+                textDecoration: "none", fontSize: 15, fontWeight: item.is_cta ? 600 : 400,
+                textTransform: "uppercase", letterSpacing: "0.5px",
+                paddingBottom: 20, borderBottom: "1px solid #1A1A1A",
+              }}>
               {item.label}
             </a>
           ))}

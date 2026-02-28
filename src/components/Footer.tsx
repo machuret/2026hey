@@ -58,20 +58,20 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer style={{ background: "#060606", fontFamily: "'DM Sans',sans-serif", padding: "48px 48px 32px" }}>
+    <footer className="footer-outer" style={{ background: "#060606", fontFamily: "'DM Sans',sans-serif", padding: "48px 48px 32px" }}>
       {/* Card with tape */}
       <div style={{ maxWidth: 1160, margin: "0 auto", position: "relative" }}>
         <TapeLeft />
         <TapeRight />
 
-        <div style={{
+        <div className="footer-card" style={{
           background: "#111111",
           border: "1px solid #1E1E1E",
           borderRadius: 16,
           padding: "48px 52px 40px",
         }}>
           {/* Main grid */}
-          <div style={{
+          <div className="footer-grid" style={{
             display: "grid",
             gridTemplateColumns: "1.6fr 1fr 1fr 1fr",
             gap: 48,

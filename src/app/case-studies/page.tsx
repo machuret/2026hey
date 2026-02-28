@@ -308,7 +308,7 @@ export default function CaseStudiesPage() {
       <Navbar activePage="case-studies" />
 
       {/* HERO */}
-      <section style={{
+      <section className="page-hero" style={{
         minHeight: "68vh", display: "flex", flexDirection: "column",
         justifyContent: "flex-end", padding: "140px 64px 88px",
         position: "relative", overflow: "hidden",

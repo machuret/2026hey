@@ -79,7 +79,7 @@ export default function WhatsAppAgentPage() {
       <Navbar activePage="whatsapp-agent" />
 
       {/* ── HERO ── */}
-      <section style={{
+      <section className="hero-2col" style={{
         minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr",
         alignItems: "center", padding: "120px 64px 80px",
         position: "relative", overflow: "hidden",
@@ -114,17 +114,17 @@ export default function WhatsAppAgentPage() {
         {/* Right — chat mockup */}
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
           {/* Float badges */}
-          <div style={{ position: "absolute", top: -20, left: -60, background: DARK2, border: `1px solid rgba(37,211,102,0.25)`, borderRadius: 6, padding: "12px 16px", fontSize: 12, whiteSpace: "nowrap", animation: "float 4s ease-in-out infinite" }}>
+          <div className="float-badge" style={{ position: "absolute", top: -20, left: -60, background: DARK2, border: `1px solid rgba(37,211,102,0.25)`, borderRadius: 6, padding: "12px 16px", fontSize: 12, whiteSpace: "nowrap", animation: "float 4s ease-in-out infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: G, display: "block", lineHeight: 1 }}>&lt;30s</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 2 }}>Average response time</span>
           </div>
-          <div style={{ position: "absolute", bottom: -20, right: -60, background: DARK2, border: `1px solid rgba(37,211,102,0.25)`, borderRadius: 6, padding: "12px 16px", fontSize: 12, whiteSpace: "nowrap", animation: "float 4s ease-in-out 2s infinite" }}>
+          <div className="float-badge" style={{ position: "absolute", bottom: -20, right: -60, background: DARK2, border: `1px solid rgba(37,211,102,0.25)`, borderRadius: 6, padding: "12px 16px", fontSize: 12, whiteSpace: "nowrap", animation: "float 4s ease-in-out 2s infinite" }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: G, display: "block", lineHeight: 1 }}>77%</span>
             <span style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 2 }}>Lead reply rate</span>
           </div>
 
           {/* Chat window */}
-          <div style={{ background: DARK2, border: `1px solid rgba(37,211,102,0.25)`, borderRadius: 12, width: 340, overflow: "hidden", boxShadow: "0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(37,211,102,0.08)" }}>
+          <div className="hero-mockup" style={{ background: DARK2, border: `1px solid rgba(37,211,102,0.25)`, borderRadius: 12, width: 340, overflow: "hidden", boxShadow: "0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(37,211,102,0.08)" }}>
             {/* Header */}
             <div style={{ background: DARK3, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${DARK4}` }}>
               <div style={{ width: 38, height: 38, borderRadius: "50%", background: G, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, boxShadow: "0 0 12px rgba(37,211,102,0.4)" }}>🤖</div>
