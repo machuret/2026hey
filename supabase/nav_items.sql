@@ -32,12 +32,24 @@ create policy "service role all nav_items" on nav_items using (auth.role() = 'se
 -- SEED: DEFAULT NAV ITEMS
 -- ══════════════════════════════════════════════════════
 insert into nav_items (label, href, sort_order, visible, is_cta, open_new_tab) values
-('Services',        '/#services',          1,  true,  false, false),
-('Voicemail Drops', '/ringless-voicemail', 2,  true,  false, false),
-('WhatsApp AI',     '/whatsapp-agent',     3,  true,  false, false),
-('Packages',        '/packages',           4,  true,  false, false),
-('Case Studies',    '/case-studies',       5,  true,  false, false),
-('About',           '/about',              6,  true,  false, false),
+('About',           '/about',              1,  true,  false, false),
+('Services',        '/#services',          2,  true,  false, false),
+('Voicemail Drops', '/ringless-voicemail', 3,  true,  false, false),
+('WhatsApp Agent',  '/whatsapp-agent',     4,  true,  false, false),
+('Packages',        '/packages',           5,  true,  false, false),
+('Case Studies',    '/case-studies',       6,  true,  false, false),
 ('Get Started',     '/contact',            7,  true,  true,  false)
 
 on conflict do nothing;
+
+-- ══════════════════════════════════════════════════════
+-- UPDATE: Re-order and relabel existing rows
+-- Run this if the table was already seeded
+-- ══════════════════════════════════════════════════════
+update nav_items set label = 'About',          href = '/about',              sort_order = 1 where href = '/about';
+update nav_items set label = 'Services',       href = '/#services',          sort_order = 2 where href = '/#services';
+update nav_items set label = 'Voicemail Drops',href = '/ringless-voicemail', sort_order = 3 where href = '/ringless-voicemail';
+update nav_items set label = 'WhatsApp Agent', href = '/whatsapp-agent',     sort_order = 4 where href = '/whatsapp-agent';
+update nav_items set label = 'Packages',       href = '/packages',           sort_order = 5 where href = '/packages';
+update nav_items set label = 'Case Studies',   href = '/case-studies',       sort_order = 6 where href = '/case-studies';
+update nav_items set label = 'Get Started',    href = '/contact',            sort_order = 7 where href = '/contact';

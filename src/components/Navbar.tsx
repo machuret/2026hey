@@ -12,12 +12,12 @@ type NavItem = {
 };
 
 const FALLBACK: NavItem[] = [
-  { id: "1", label: "Services",       href: "/#services",          sort_order: 1, visible: true, is_cta: false, open_new_tab: false },
-  { id: "2", label: "Voicemail Drops",href: "/ringless-voicemail", sort_order: 2, visible: true, is_cta: false, open_new_tab: false },
-  { id: "3", label: "WhatsApp AI",    href: "/whatsapp-agent",     sort_order: 3, visible: true, is_cta: false, open_new_tab: false },
-  { id: "4", label: "Packages",       href: "/packages",           sort_order: 4, visible: true, is_cta: false, open_new_tab: false },
-  { id: "5", label: "Case Studies",   href: "/case-studies",       sort_order: 5, visible: true, is_cta: false, open_new_tab: false },
-  { id: "6", label: "About",          href: "/about",              sort_order: 6, visible: true, is_cta: false, open_new_tab: false },
+  { id: "1", label: "About",          href: "/about",              sort_order: 1, visible: true, is_cta: false, open_new_tab: false },
+  { id: "2", label: "Services",       href: "/#services",          sort_order: 2, visible: true, is_cta: false, open_new_tab: false },
+  { id: "3", label: "Voicemail Drops",href: "/ringless-voicemail", sort_order: 3, visible: true, is_cta: false, open_new_tab: false },
+  { id: "4", label: "WhatsApp Agent", href: "/whatsapp-agent",     sort_order: 4, visible: true, is_cta: false, open_new_tab: false },
+  { id: "5", label: "Packages",       href: "/packages",           sort_order: 5, visible: true, is_cta: false, open_new_tab: false },
+  { id: "6", label: "Case Studies",   href: "/case-studies",       sort_order: 6, visible: true, is_cta: false, open_new_tab: false },
   { id: "7", label: "Get Started",    href: "/contact",            sort_order: 7, visible: true, is_cta: true,  open_new_tab: false },
 ];
 
