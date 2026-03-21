@@ -39,7 +39,7 @@ export type ApiHealth = {
   apify: { status: HealthStatus; detail: string };
 };
 
-export type PipelineTab = "scrape" | "enrich" | "qualify" | "import";
+export type PipelineTab = "scrape" | "enrich" | "contacts" | "import";
 
 export const ACTORS: ActorDef[] = [
   {

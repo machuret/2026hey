@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Zap, Loader2, CheckCircle2, XCircle, RefreshCw, ChevronRight, Database, Brain, Download } from "lucide-react";
+import { Zap, Loader2, CheckCircle2, XCircle, RefreshCw, ChevronRight, Database, Users, Download } from "lucide-react";
 import {
   ScrapedLead, ActorCategory, ApiHealth, PipelineTab,
   ACTORS, buildActorInput,
 } from "./types";
 import { ScrapeTab }  from "@/components/engine/leads/ScrapeTab";
 import { EnrichTab }  from "@/components/engine/leads/EnrichTab";
-import { QualifyTab } from "@/components/engine/leads/QualifyTab";
+import { ContactsTab } from "@/components/engine/leads/ContactsTab";
 import { ImportTab }  from "@/components/engine/leads/ImportTab";
 
 export default function LeadsPage() {
@@ -30,13 +30,10 @@ export default function LeadsPage() {
   const [enrichError, setEnrichError] = useState("");
   const [enrichCount, setEnrichCount] = useState(0);
 
-  // ── Qualify state ─────────────────────────────────────────────
-  const [qualifying, setQualifying]       = useState(false);
-  const [qualifyError, setQualifyError]   = useState("");
-  const [qualifyWarnings, setQualifyWarnings] = useState<string[]>([]);
-  const [scoreThreshold, setScoreThreshold]   = useState(5);
-  const [useClaudeForBorderline, setUseClaudeForBorderline] = useState(false);
-  const [scoringPrompt, setScoringPrompt] = useState("");
+  // ── Contacts tab state ────────────────────────────────────
+  const [contactsEnriching, setContactsEnriching] = useState(false);
+  const [contactsError, setContactsError]         = useState("");
+  const [contactsEnrichCount, setContactsEnrichCount] = useState(0);
 
   // ── Import state ──────────────────────────────────────────────
   const [selected, setSelected]   = useState<Set<number>>(new Set());
@@ -98,6 +95,7 @@ export default function LeadsPage() {
     [catFilter],
   );
   const qualifiedLeads = useMemo(() => leads.filter((l) => l.ai_score !== undefined), [leads]);
+  void qualifiedLeads;
 
   // ── Pipeline actions ──────────────────────────────────────────────
   const scrape = async () => {
@@ -151,31 +149,36 @@ export default function LeadsPage() {
         signal: AbortSignal.timeout(180000),
       });
       const data = await res.json();
-      if (data.success) { setLeads(data.leads ?? leads); setEnrichCount(data.enrichedCount ?? 0); setTab("qualify"); }
+      if (data.success) { setLeads(data.leads ?? leads); setEnrichCount(data.enrichedCount ?? 0); setTab("contacts"); }
       else { setEnrichError(data.error ?? "Enrichment failed"); }
     } catch (e: unknown) {
       setEnrichError(e instanceof Error && e.name === "TimeoutError" ? "Enrichment timed out — try a smaller batch (≤20 leads)" : "Network error — enrichment failed");
     } finally { setEnriching(false); }
   };
 
-  const qualify = async (prompt: string, useClaude: boolean) => {
-    if (!leads.length) { setQualifyError("No leads to qualify"); return; }
-    setQualifying(true); setQualifyError(""); setQualifyWarnings([]);
+  const fillContactGaps = async () => {
+    const incomplete = leads.filter((l) => !l.email || !l.phone);
+    if (!incomplete.length) { setTab("import"); return; }
+    setContactsEnriching(true); setContactsError("");
     try {
-      const res  = await fetch("/api/engine/leads/qualify", {
+      const res  = await fetch("/api/engine/leads/enrich", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leads, scoringPrompt: prompt || undefined, useClaudeForBorderline: useClaude }),
-        signal: AbortSignal.timeout(120000),
+        body: JSON.stringify({ leads: incomplete }),
+        signal: AbortSignal.timeout(180000),
       });
       const data = await res.json();
       if (data.success) {
-        setLeads(data.leads ?? leads);
-        if (data.errors?.length) setQualifyWarnings(data.errors);
-        setTab("import");
-      } else { setQualifyError(data.error ?? "Qualify failed"); }
+        const enrichedMap = new Map(
+          (data.leads ?? []).map((l: ScrapedLead) => [l.company + l.name, l])
+        );
+        setLeads((prev) => prev.map((l) =>
+          enrichedMap.get(l.company + l.name) as ScrapedLead ?? l
+        ));
+        setContactsEnrichCount(data.enrichedCount ?? 0);
+      } else { setContactsError(data.error ?? "Enrichment failed"); }
     } catch (e: unknown) {
-      setQualifyError(e instanceof Error && e.name === "TimeoutError" ? "Scoring timed out — try a smaller batch (≤50 leads)" : "Network error — qualify failed");
-    } finally { setQualifying(false); }
+      setContactsError(e instanceof Error && e.name === "TimeoutError" ? "Timed out — try a smaller batch" : "Network error");
+    } finally { setContactsEnriching(false); }
   };
 
   const toggleAll = () => {
@@ -234,18 +237,12 @@ export default function LeadsPage() {
       setSaveMsg("Network error — save failed");
     } finally { setSaving(false); }
   };
-  const selectAboveThreshold = () => {
-    setSelected(new Set(
-      leads.map((l, i) => (l.ai_score ?? 0) >= scoreThreshold ? i : -1).filter((i) => i >= 0),
-    ));
-  };
-
   // ── Tab definitions ───────────────────────────────────────────────
   const TABS = [
-    { id: "scrape"  as PipelineTab, label: "1 · Scrape",     icon: <Zap      className="h-3.5 w-3.5" /> },
-    { id: "enrich"  as PipelineTab, label: "2 · Enrich",     icon: <Database className="h-3.5 w-3.5" />, count: leads.length || undefined },
-    { id: "qualify" as PipelineTab, label: "3 · AI Qualify", icon: <Brain    className="h-3.5 w-3.5" />, count: qualifiedLeads.length || undefined },
-    { id: "import"  as PipelineTab, label: "4 · CRM Import", icon: <Download className="h-3.5 w-3.5" />, count: leads.length || undefined },
+    { id: "scrape"   as PipelineTab, label: "1 · Scrape",   icon: <Zap      className="h-3.5 w-3.5" /> },
+    { id: "enrich"   as PipelineTab, label: "2 · Enrich",   icon: <Database className="h-3.5 w-3.5" />, count: leads.length || undefined },
+    { id: "contacts" as PipelineTab, label: "3 · Contacts", icon: <Users    className="h-3.5 w-3.5" />, count: leads.length || undefined },
+    { id: "import"   as PipelineTab, label: "4 · Import",   icon: <Download className="h-3.5 w-3.5" />, count: leads.length || undefined },
   ];
 
   return (
@@ -258,7 +255,7 @@ export default function LeadsPage() {
               <Zap className="h-4 w-4 text-indigo-400" />
               <h1 className="text-lg font-bold text-white">Lead Pipeline</h1>
             </div>
-            <p className="text-xs text-gray-500">Scrape → Enrich → AI Qualify → CRM Import</p>
+            <p className="text-xs text-gray-500">Scrape → Enrich → Contacts → CRM Import</p>
           </div>
           <div className="flex items-center gap-2">
             {(["crm", "apify"] as const).map((k) => {
@@ -300,7 +297,6 @@ export default function LeadsPage() {
             <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
               <ChevronRight className="h-3.5 w-3.5" />
               <span>{leads.length} in pipeline</span>
-              {qualifiedLeads.length > 0 && <span className="text-emerald-400">· {qualifiedLeads.length} scored</span>}
             </div>
           )}
         </div>
@@ -326,21 +322,17 @@ export default function LeadsPage() {
           <EnrichTab
             leads={leads} selected={selected}
             enriching={enriching} error={enrichError} enrichCount={enrichCount}
-            onEnrich={enrich} onSkip={() => setTab("qualify")} onToggle={toggle}
+            onEnrich={enrich} onSkip={() => setTab("contacts")} onToggle={toggle}
           />
         )}
-        {tab === "qualify" && (
-          <QualifyTab
-            leads={leads} selected={selected}
-            qualifying={qualifying} error={qualifyError} warnings={qualifyWarnings}
-            scoreThreshold={scoreThreshold}
-            useClaudeForBorderline={useClaudeForBorderline}
-            scoringPrompt={scoringPrompt}
-            onQualify={qualify} onSkip={() => setTab("import")}
-            onThresholdChange={setScoreThreshold}
-            onClaudeChange={setUseClaudeForBorderline}
-            onPromptChange={setScoringPrompt}
-            onToggle={toggle}
+        {tab === "contacts" && (
+          <ContactsTab
+            leads={leads}
+            enriching={contactsEnriching}
+            error={contactsError}
+            enrichCount={contactsEnrichCount}
+            onFillGaps={fillContactGaps}
+            onNext={() => setTab("import")}
           />
         )}
         {tab === "import" && (
