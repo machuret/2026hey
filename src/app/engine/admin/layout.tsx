@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, PhoneCall, BookOpen, ChevronLeft } from "lucide-react";
+import { Settings, PhoneCall, BookOpen, ChevronLeft, FileText } from "lucide-react";
 
 const NAV = [
-  { href: "/engine/admin/call-flow", label: "Call Flows",  icon: PhoneCall },
-  { href: "/engine/admin/training",  label: "Training",    icon: BookOpen  },
+  { href: "/engine/admin/call-flow",  label: "Call Flows",  icon: PhoneCall  },
+  { href: "/engine/admin/training",   label: "Training",    icon: BookOpen   },
+  { href: "/engine/admin/transcribe", label: "Transcribe",  icon: FileText   },
 ];
 
 export default function EngineAdminLayout({ children }: { children: React.ReactNode }) {
