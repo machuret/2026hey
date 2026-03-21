@@ -52,7 +52,7 @@ serve(async (req) => {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoUrl: url, url }),
+      body: JSON.stringify({ video_url: url }),
     }
   );
 
