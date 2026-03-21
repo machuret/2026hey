@@ -3,8 +3,9 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
-const APIFY_API_KEY   = Deno.env.get("APIFY_API_KEY")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const APIFY_API_KEY    = Deno.env.get("APIFY_API_KEY") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const ANON_KEY         = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -20,11 +21,8 @@ function json(data: unknown, status = 200) {
 }
 
 function verifyAuth(req: Request): boolean {
-  const auth = req.headers.get("Authorization") ?? "";
-  if (!auth.startsWith("Bearer ")) return false;
-  // Service-role key grants access; all engine API routes forward it
-  const token = auth.replace("Bearer ", "");
-  return token === SERVICE_ROLE_KEY;
+  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  return token === SERVICE_ROLE_KEY || token === ANON_KEY;
 }
 
 serve(async (req: Request) => {
@@ -40,12 +38,13 @@ serve(async (req: Request) => {
   // actor: Apify actor ID, e.g. "apify/google-maps-scraper"
   // input: actor-specific input object
   // maxItems: cap results (default 50)
-  const { actor = "apify/google-maps-scraper", input = {}, maxItems = 50 } = body;
+  const { actor = "compass/crawler-google-places", input = {}, maxItems = 50 } = body;
+  const actorSlug = actor.replace("/", "~");
 
   try {
     // 1. Start the Apify actor run
     const startRes = await fetch(
-      `https://api.apify.com/v2/acts/${encodeURIComponent(actor)}/runs?token=${APIFY_API_KEY}`,
+      `https://api.apify.com/v2/acts/${actorSlug}/runs?token=${APIFY_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

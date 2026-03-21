@@ -6,6 +6,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const APIFY_API_KEY    = Deno.env.get("APIFY_API_KEY") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const ANON_KEY         = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -20,8 +21,8 @@ function json(body: unknown, status = 200) {
 }
 
 function verifyAuth(req: Request): boolean {
-  const auth = req.headers.get("authorization") ?? "";
-  return auth === `Bearer ${SERVICE_ROLE_KEY}`;
+  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
+  return token === SERVICE_ROLE_KEY || token === ANON_KEY;
 }
 
 type LeadIn = {
@@ -75,7 +76,7 @@ function extractDomain(url: string): string {
   }
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (!verifyAuth(req)) return json({ error: "Unauthorized" }, 401);
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
