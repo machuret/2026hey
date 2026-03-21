@@ -4,17 +4,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const APIFY_API_KEY     = Deno.env.get("APIFY_API_KEY") ?? "";
+// SERVICE_ROLE_KEY used only for the Supabase DB client below
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "authorization, content-type",
 };
-
-function verifyAuth(req: Request): boolean {
-  const auth = req.headers.get("authorization") ?? "";
-  if (auth === `Bearer ${SERVICE_ROLE_KEY}`) return true;
-  return false;
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -33,8 +28,6 @@ function detectSource(url: string): "youtube" | "instagram" | "tiktok" | "other"
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-
-  if (!verifyAuth(req)) return json({ error: "Unauthorized" }, 401);
 
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
