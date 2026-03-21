@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, Loader2, Trash2, Pencil, Check, X, AlertTriangle, GripVertical } from "lucide-react";
+import { Plus, Loader2, Trash2, Pencil, Check, X, AlertTriangle, GripVertical, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
+import ObjectionResponsesPanel from "./ObjectionResponsesPanel";
 
 export type Objection = {
   id: string;
@@ -24,6 +25,9 @@ export default function ObjectionsTab({ objections, loading, onAdd, onEdit, onTo
   const [adding, setAdding]             = useState(false);
   const [editingObj, setEditingObj]     = useState<Record<string, string>>({});
   const [savingId, setSavingId]         = useState<string | null>(null);
+  const [expanded, setExpanded]         = useState<string | null>(null);
+
+  const toggleExpand = (id: string) => setExpanded((prev) => prev === id ? null : id);
 
   const handleAdd = useCallback(async () => {
     const label = newLabel.trim();
@@ -89,67 +93,68 @@ export default function ObjectionsTab({ objections, loading, onAdd, onEdit, onTo
       ) : (
         <div className="rounded-2xl bg-gray-900 border border-gray-800 overflow-hidden divide-y divide-gray-800">
           {objections.map((obj) => (
-            <div
-              key={obj.id}
-              className={`flex items-center gap-3 px-4 py-3 transition-opacity ${!obj.is_active ? "opacity-40" : ""}`}
-            >
-              <GripVertical className="h-4 w-4 text-gray-700 shrink-0" aria-label="Drag to reorder (coming soon)" />
-              <div className={`h-2 w-2 rounded-full shrink-0 ${obj.is_active ? "bg-yellow-400" : "bg-gray-600"}`} />
+            <div key={obj.id} className={`transition-opacity ${!obj.is_active ? "opacity-50" : ""}`}>
+              {/* ── Objection row ── */}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <GripVertical className="h-4 w-4 text-gray-700 shrink-0" aria-label="Drag to reorder (coming soon)" />
+                <div className={`h-2 w-2 rounded-full shrink-0 ${obj.is_active ? "bg-yellow-400" : "bg-gray-600"}`} />
 
-              {editingObj[obj.id] !== undefined ? (
-                <>
-                  <input
-                    value={editingObj[obj.id]}
-                    onChange={(e) => setEditingObj((p) => ({ ...p, [obj.id]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleEdit(obj.id); if (e.key === "Escape") setEditingObj((p) => { const n = { ...p }; delete n[obj.id]; return n; }); }}
-                    autoFocus
-                    className="flex-1 bg-gray-800 border border-yellow-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleEdit(obj.id)}
-                    disabled={savingId === obj.id}
-                    className="p-1.5 text-emerald-400 hover:text-emerald-300 transition-colors"
-                    title="Save"
-                  >
-                    {savingId === obj.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  </button>
-                  <button
-                    onClick={() => setEditingObj((p) => { const n = { ...p }; delete n[obj.id]; return n; })}
-                    className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Cancel"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="flex-1 text-sm text-white">{obj.label}</span>
-                  <button
-                    onClick={() => onToggle(obj)}
-                    title={obj.is_active ? "Deactivate (hides from runner)" : "Activate"}
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
-                      obj.is_active
-                        ? "border-yellow-700 text-yellow-400 hover:bg-yellow-900/30"
-                        : "border-gray-700 text-gray-500 hover:bg-gray-800"
-                    }`}
-                  >
-                    {obj.is_active ? "active" : "off"}
-                  </button>
-                  <button
-                    onClick={() => setEditingObj((p) => ({ ...p, [obj.id]: obj.label }))}
-                    className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => { if (confirm("Delete this objection?")) onDelete(obj.id); }}
-                    className="p-1.5 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </>
+                {editingObj[obj.id] !== undefined ? (
+                  <>
+                    <input
+                      value={editingObj[obj.id]}
+                      onChange={(e) => setEditingObj((p) => ({ ...p, [obj.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleEdit(obj.id); if (e.key === "Escape") setEditingObj((p) => { const n = { ...p }; delete n[obj.id]; return n; }); }}
+                      autoFocus
+                      className="flex-1 bg-gray-800 border border-yellow-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none"
+                    />
+                    <button onClick={() => handleEdit(obj.id)} disabled={savingId === obj.id} className="p-1.5 text-emerald-400 hover:text-emerald-300 transition-colors" title="Save">
+                      {savingId === obj.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    </button>
+                    <button onClick={() => setEditingObj((p) => { const n = { ...p }; delete n[obj.id]; return n; })} className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors" title="Cancel">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Click label to expand responses */}
+                    <button
+                      onClick={() => toggleExpand(obj.id)}
+                      className="flex-1 flex items-center gap-2 text-left group"
+                    >
+                      <span className="text-sm text-white group-hover:text-yellow-300 transition-colors">{obj.label}</span>
+                      <MessageSquare className="h-3.5 w-3.5 text-gray-600 group-hover:text-yellow-600 transition-colors shrink-0" />
+                      {expanded === obj.id
+                        ? <ChevronUp className="h-3.5 w-3.5 text-gray-600 shrink-0" />
+                        : <ChevronDown className="h-3.5 w-3.5 text-gray-600 shrink-0" />
+                      }
+                    </button>
+                    <button
+                      onClick={() => onToggle(obj)}
+                      title={obj.is_active ? "Deactivate (hides from runner)" : "Activate"}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                        obj.is_active
+                          ? "border-yellow-700 text-yellow-400 hover:bg-yellow-900/30"
+                          : "border-gray-700 text-gray-500 hover:bg-gray-800"
+                      }`}
+                    >
+                      {obj.is_active ? "active" : "off"}
+                    </button>
+                    <button onClick={() => setEditingObj((p) => ({ ...p, [obj.id]: obj.label }))} className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Edit label">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => { if (confirm("Delete this objection and all its responses?")) onDelete(obj.id); }} className="p-1.5 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors" title="Delete">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* ── Responses panel (expanded) ── */}
+              {expanded === obj.id && (
+                <div className="px-4 pb-4 bg-gray-950/50">
+                  <ObjectionResponsesPanel objectionId={obj.id} />
+                </div>
               )}
             </div>
           ))}
