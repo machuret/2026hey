@@ -34,6 +34,9 @@ export default function LeadsPage() {
   const [contactsEnriching, setContactsEnriching] = useState(false);
   const [contactsError, setContactsError]         = useState("");
   const [contactsEnrichCount, setContactsEnrichCount] = useState(0);
+  const [dmFinding, setDmFinding]     = useState(false);
+  const [dmError, setDmError]         = useState("");
+  const [dmCount, setDmCount]         = useState(0);
 
   // ── Import state ──────────────────────────────────────────────
   const [selected, setSelected]   = useState<Set<number>>(new Set());
@@ -154,6 +157,31 @@ export default function LeadsPage() {
     } catch (e: unknown) {
       setEnrichError(e instanceof Error && e.name === "TimeoutError" ? "Enrichment timed out — try a smaller batch (≤20 leads)" : "Network error — enrichment failed");
     } finally { setEnriching(false); }
+  };
+
+  const findDecisionMakers = async () => {
+    const needsDM = leads.filter((l) => !l.decision_maker);
+    if (!needsDM.length) return;
+    setDmFinding(true); setDmError("");
+    try {
+      const res  = await fetch("/api/engine/leads/apollo-dm", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leads: needsDM }),
+        signal: AbortSignal.timeout(300000),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const enrichedMap = new Map(
+          (data.leads ?? []).map((l: ScrapedLead) => [l.company + l.name, l])
+        );
+        setLeads((prev) => prev.map((l) =>
+          enrichedMap.get(l.company + l.name) as ScrapedLead ?? l
+        ));
+        setDmCount(data.enrichedCount ?? 0);
+      } else { setDmError(data.error ?? "Apollo search failed"); }
+    } catch (e: unknown) {
+      setDmError(e instanceof Error && e.name === "TimeoutError" ? "Timed out — Apollo can be slow for large batches" : "Network error");
+    } finally { setDmFinding(false); }
   };
 
   const fillContactGaps = async () => {
@@ -331,7 +359,11 @@ export default function LeadsPage() {
             enriching={contactsEnriching}
             error={contactsError}
             enrichCount={contactsEnrichCount}
+            dmFinding={dmFinding}
+            dmError={dmError}
+            dmCount={dmCount}
             onFillGaps={fillContactGaps}
+            onFindDMs={findDecisionMakers}
             onNext={() => setTab("import")}
           />
         )}

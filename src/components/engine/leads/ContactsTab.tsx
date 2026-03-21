@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Sparkles, ArrowRight, User, Mail, Phone, CheckCircle2 } from "lucide-react";
+import { Loader2, Sparkles, ArrowRight, User, Mail, Phone, CheckCircle2, Search } from "lucide-react";
 import { ScrapedLead, bestEmail, bestPhone } from "@/app/engine/leads/types";
 import { ErrBanner } from "./ErrBanner";
 
@@ -9,7 +9,11 @@ type Props = {
   enriching: boolean;
   error: string;
   enrichCount: number;
+  dmFinding: boolean;
+  dmError: string;
+  dmCount: number;
   onFillGaps: () => void;
+  onFindDMs: () => void;
   onNext: () => void;
 };
 
@@ -23,21 +27,22 @@ function Dot({ ok }: { ok: boolean }) {
   );
 }
 
-export function ContactsTab({ leads, enriching, error, enrichCount, onFillGaps, onNext }: Props) {
+export function ContactsTab({ leads, enriching, error, enrichCount, dmFinding, dmError, dmCount, onFillGaps, onFindDMs, onNext }: Props) {
   const withEmail   = leads.filter((l) => bestEmail(l));
   const withPhone   = leads.filter((l) => bestPhone(l));
   const withDM      = leads.filter((l) => l.decision_maker);
   const incomplete  = leads.filter((l) => !bestEmail(l) || !bestPhone(l));
+  const missingDM   = leads.filter((l) => !l.decision_maker);
 
   return (
     <div className="space-y-5">
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Total Leads",      value: leads.length,      colour: "text-white" },
-          { label: "Have Email",       value: withEmail.length,  colour: "text-indigo-400" },
-          { label: "Have Phone/Mobile",value: withPhone.length,  colour: "text-emerald-400" },
-          { label: "Decision Maker",   value: withDM.length,     colour: "text-amber-400" },
+          { label: "Total Leads",       value: leads.length,     colour: "text-white" },
+          { label: "Have Email",        value: withEmail.length, colour: "text-indigo-400" },
+          { label: "Have Phone/Mobile", value: withPhone.length, colour: "text-emerald-400" },
+          { label: "Decision Maker",    value: withDM.length,    colour: "text-amber-400" },
         ].map(({ label, value, colour }) => (
           <div key={label} className="rounded-2xl bg-gray-900 border border-gray-800 p-4 text-center">
             <p className={`text-2xl font-bold ${colour}`}>{leads.length ? value : "—"}</p>
@@ -51,45 +56,76 @@ export function ContactsTab({ leads, enriching, error, enrichCount, onFillGaps, 
         ))}
       </div>
 
-      {/* Fill gaps action */}
+      {/* Step 1: Fill contact gaps via website crawl */}
       <div className="rounded-2xl bg-gray-900 border border-gray-800 p-5 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-white mb-1">Fill Contact Gaps</h2>
+          <h2 className="text-sm font-semibold text-white mb-1">Step 1 — Fill Contact Gaps</h2>
           <p className="text-xs text-gray-500">
             {incomplete.length > 0
               ? `${incomplete.length} lead${incomplete.length !== 1 ? "s" : ""} missing email or phone — crawl their websites to fill the gaps.`
               : "All leads have email and phone data."}
           </p>
         </div>
-
         {enrichCount > 0 && (
           <div className="flex items-center gap-2 rounded-lg bg-emerald-900/20 border border-emerald-800 px-3 py-2 text-xs text-emerald-300">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             {enrichCount} leads updated with new contact data
           </div>
         )}
-
         <ErrBanner msg={error} />
-
-        <div className="flex flex-wrap gap-3">
-          {incomplete.length > 0 && (
-            <button
-              onClick={onFillGaps}
-              disabled={enriching || leads.length === 0}
-              className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
-            >
-              {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {enriching ? `Crawling websites… (${incomplete.length} leads)` : `Fill ${incomplete.length} gaps`}
-            </button>
-          )}
+        {incomplete.length > 0 && (
           <button
-            onClick={onNext}
-            disabled={leads.length === 0}
-            className="flex items-center gap-2 rounded-xl border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-300 hover:text-white hover:border-gray-600 disabled:opacity-50 transition-colors"
+            onClick={onFillGaps}
+            disabled={enriching || leads.length === 0}
+            className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
           >
-            Continue to Import <ArrowRight className="h-3.5 w-3.5" />
+            {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {enriching ? `Crawling websites… (${incomplete.length} leads)` : `Fill ${incomplete.length} gaps`}
           </button>
+        )}
+      </div>
+
+      {/* Step 2: Apollo decision maker finder */}
+      <div className="rounded-2xl bg-gray-900 border border-gray-800 p-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-white mb-1">Step 2 — Find Decision Makers via Apollo</h2>
+          <p className="text-xs text-gray-500">
+            {missingDM.length > 0
+              ? `${missingDM.length} lead${missingDM.length !== 1 ? "s" : ""} without a decision maker — search Apollo by domain to find the owner/director + their email.`
+              : "Decision makers found for all leads."}
+          </p>
+          <p className="text-[10px] text-gray-600 mt-1">Uses Apify · coladeu/apollo-people-leads-scraper → apollo-person-phone-and-email-enrichment</p>
         </div>
+        {dmCount > 0 && (
+          <div className="flex items-center gap-2 rounded-lg bg-amber-900/20 border border-amber-800 px-3 py-2 text-xs text-amber-300">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            {dmCount} decision makers found via Apollo
+          </div>
+        )}
+        <ErrBanner msg={dmError} />
+        {missingDM.length > 0 && (
+          <button
+            onClick={onFindDMs}
+            disabled={dmFinding || leads.length === 0}
+            className="flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+          >
+            {dmFinding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            {dmFinding
+              ? `Searching Apollo… (${missingDM.length} leads, ~${Math.ceil(missingDM.length * 2)}min)`
+              : `Find ${missingDM.length} Decision Makers`}
+          </button>
+        )}
+      </div>
+
+      {/* Continue */}
+      <div className="flex justify-end">
+        <button
+          onClick={onNext}
+          disabled={leads.length === 0}
+          className="flex items-center gap-2 rounded-xl border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-300 hover:text-white hover:border-gray-600 disabled:opacity-50 transition-colors"
+        >
+          Continue to Import <ArrowRight className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Per-lead completeness table */}
