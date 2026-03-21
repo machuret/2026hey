@@ -37,11 +37,14 @@ export async function proxyEdgeFn(
     const url = new URL(edgeFnUrl(fnName));
     Object.entries(searchParams).forEach(([k, v]) => url.searchParams.set(k, v));
 
+    // Always use service role key — edge functions verify against it server-side
+    const authKey = SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY!;
+
     const res = await fetch(url.toString(), {
       method,
       headers: {
         "Content-Type": "application/json",
-        Authorization: getAuthHeader(req),
+        Authorization: `Bearer ${authKey}`,
         apikey: SUPABASE_ANON_KEY!,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
