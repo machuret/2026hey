@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Youtube, Instagram, Link2, Loader2, Trash2, ChevronDown, ChevronUp,
-  Sparkles, CheckCircle2, AlertCircle, FileText, Clock,
+  Sparkles, CheckCircle2, AlertCircle, FileText, Clock, FlaskConical, Zap,
 } from "lucide-react";
 import type { Transcript, TranscriptFull } from "@/types/engine";
 import { SOURCE_COLOURS, detectTranscriptSource } from "@/types/engine";
@@ -25,6 +25,45 @@ export default function AdminTranscribePage() {
   const [analysing, setAnalysing]       = useState<string | null>(null);
   const [error, setError]               = useState("");
   const [success, setSuccess]           = useState("");
+
+  // ── API health test ───────────────────────────────────────────────
+  type TestStatus = "idle" | "running" | "ok" | "error";
+  const [testStatus, setTestStatus]   = useState<TestStatus>("idle");
+  const [testDetail, setTestDetail]   = useState("");
+  const [testLatency, setTestLatency] = useState<number | null>(null);
+  const [testSnippet, setTestSnippet] = useState("");
+
+  const runTest = async () => {
+    setTestStatus("running");
+    setTestDetail("");
+    setTestSnippet("");
+    setTestLatency(null);
+    const t0 = Date.now();
+    try {
+      const res = await fetch("/api/engine/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Short public YouTube video — no save so nothing stored
+        body: JSON.stringify({ url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", save: false }),
+        signal: AbortSignal.timeout(90000),
+      });
+      const data = await res.json();
+      const ms = Date.now() - t0;
+      setTestLatency(ms);
+      if (data.error) {
+        setTestStatus("error");
+        setTestDetail(data.error);
+      } else {
+        setTestStatus("ok");
+        setTestDetail(`Actor responded · title: "${data.title}"`);
+        setTestSnippet((data.content ?? "").slice(0, 300));
+      }
+    } catch (e: unknown) {
+      setTestLatency(Date.now() - t0);
+      setTestStatus("error");
+      setTestDetail(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const fetchTranscripts = useCallback(async () => {
     setLoading(true);
@@ -135,6 +174,61 @@ export default function AdminTranscribePage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+        {/* ── API Health Test ─────────────────────────────────────── */}
+        <div className="rounded-2xl bg-gray-900 border border-gray-800 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <FlaskConical className="h-4 w-4 text-indigo-400" /> API &amp; Actor Health Check
+              </h2>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                Fires a real dry-run against a public YouTube video (not saved) to confirm Apify key + actor are working
+              </p>
+            </div>
+            <button
+              onClick={runTest}
+              disabled={testStatus === "running"}
+              className="flex items-center gap-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 px-4 py-2 text-xs font-semibold text-white transition-colors whitespace-nowrap"
+            >
+              {testStatus === "running"
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Zap className="h-3.5 w-3.5" />}
+              {testStatus === "running" ? "Testing…" : "Run Test"}
+            </button>
+          </div>
+
+          {testStatus !== "idle" && (
+            <div className={`rounded-xl border px-4 py-3 space-y-2 ${
+              testStatus === "running" ? "bg-gray-800 border-gray-700" :
+              testStatus === "ok"      ? "bg-emerald-900/20 border-emerald-800/50" :
+                                         "bg-red-900/20 border-red-800/50"
+            }`}>
+              <div className="flex items-center gap-2">
+                {testStatus === "running" && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+                {testStatus === "ok"      && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
+                {testStatus === "error"   && <AlertCircle  className="h-3.5 w-3.5 text-red-400" />}
+                <span className={`text-xs font-medium ${
+                  testStatus === "ok" ? "text-emerald-300" : testStatus === "error" ? "text-red-300" : "text-gray-400"
+                }`}>
+                  {testStatus === "running" && "Calling Apify actor — may take up to 90s…"}
+                  {testStatus === "ok"      && testDetail}
+                  {testStatus === "error"   && testDetail}
+                </span>
+                {testLatency !== null && (
+                  <span className="ml-auto text-[10px] text-gray-500 flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> {(testLatency / 1000).toFixed(1)}s
+                  </span>
+                )}
+              </div>
+              {testSnippet && (
+                <pre className="text-[10px] text-gray-400 bg-gray-900 rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed max-h-24 overflow-y-auto">
+                  {testSnippet}{testSnippet.length === 300 ? "…" : ""}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* URL Input */}
         <div className="rounded-2xl bg-gray-900 border border-gray-800 p-5 space-y-4">
