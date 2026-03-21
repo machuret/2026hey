@@ -14,7 +14,8 @@ export async function GET() {
     if (error) throw error;
     return NextResponse.json({ objections: data ?? [] });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg, detail: String(err) }, { status: 500 });
   }
 }
 
