@@ -53,6 +53,7 @@ export default function AdminTranscribePage() {
       if (data.error) {
         setTestStatus("error");
         setTestDetail(data.error);
+        if (data.debug_sample) setTestSnippet(`DEBUG — raw actor output:\n${data.debug_sample}`);
       } else {
         setTestStatus("ok");
         setTestDetail(`Actor responded · title: "${data.title}"`);

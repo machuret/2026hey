@@ -73,22 +73,43 @@ serve(async (req) => {
   const title   = String(item.title ?? item.videoTitle ?? item.name ?? item.video_title ?? "Untitled");
   const rawAuthor = item.author ?? item.channel ?? item.channelName ?? item.ownerUsername ?? item.username ?? item.uploader;
   const author  = rawAuthor ? String(rawAuthor) : null;
-  // agentx/video-transcript returns transcript as an array of segments or a plain string
-  let content: string;
+
+  // agentx/video-transcript — try all known transcript field names
+  let content = "";
+
   if (Array.isArray(item.transcript)) {
-    content = (item.transcript as Array<{ text?: string; content?: string }>)
-      .map((s) => s.text ?? s.content ?? "")
+    content = (item.transcript as Array<{ text?: string; content?: string; transcript?: string }>)
+      .map((s) => s.text ?? s.content ?? s.transcript ?? "")
+      .join(" ")
+      .trim();
+  } else if (Array.isArray(item.captions)) {
+    content = (item.captions as Array<{ text?: string }>)
+      .map((s) => s.text ?? "")
       .join(" ")
       .trim();
   } else {
     content = String(
-      item.transcript ?? item.transcriptText ?? item.text ??
-      item.captions ?? item.subtitles ?? item.fullText ?? ""
+      item.transcript ?? item.transcriptText ?? item.fullTranscript ??
+      item.text ?? item.captions ?? item.subtitles ?? item.fullText ??
+      item.description ?? ""
     ).trim();
   }
 
+  // Last resort — find the longest string value in the item
   if (!content) {
-    return json({ error: "Apify returned data but transcript content was empty" }, 422);
+    const longest = Object.values(item)
+      .filter((v) => typeof v === "string" && v.length > 50)
+      .sort((a, b) => (b as string).length - (a as string).length)[0] as string | undefined;
+    if (longest) content = longest;
+  }
+
+  if (!content) {
+    // Return the raw keys to help diagnose what the actor actually returned
+    return json({
+      error: "Transcript content was empty — actor returned unknown schema",
+      debug_keys: Object.keys(item),
+      debug_sample: JSON.stringify(item).slice(0, 500),
+    }, 422);
   }
 
   // ── 2. Optionally save to Supabase ───────────────────────────────
