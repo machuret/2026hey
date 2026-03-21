@@ -11,22 +11,23 @@ type Props = {
   selected: Set<number>;
   qualifying: boolean;
   error: string;
+  warnings?: string[];
   scoreThreshold: number;
   useClaudeForBorderline: boolean;
   scoringPrompt: string;
   onQualify: (prompt: string, useClaude: boolean) => void;
   onSkip: () => void;
   onThresholdChange: (n: number) => void;
+  onClaudeChange: (v: boolean) => void;
+  onPromptChange: (v: string) => void;
   onToggle: (i: number) => void;
 };
 
 export function QualifyTab({
-  leads, selected, qualifying, error,
+  leads, selected, qualifying, error, warnings = [],
   scoreThreshold, useClaudeForBorderline, scoringPrompt,
-  onQualify, onSkip, onThresholdChange, onToggle,
+  onQualify, onSkip, onThresholdChange, onClaudeChange, onPromptChange, onToggle,
 }: Props) {
-  const [localPrompt,     setLocalPrompt]     = useState(scoringPrompt);
-  const [localUseClaude,  setLocalUseClaude]  = useState(useClaudeForBorderline);
   const [showPromptEditor, setShowPromptEditor] = useState(false);
 
   const qualifiedLeads = leads.filter((l) => l.ai_score !== undefined);
@@ -74,10 +75,10 @@ export function QualifyTab({
             {/* Claude toggle */}
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <button
-                onClick={() => setLocalUseClaude((v) => !v)}
-                className={`w-9 h-5 rounded-full transition-colors relative ${localUseClaude ? "bg-indigo-600" : "bg-gray-700"}`}
+                onClick={() => onClaudeChange(!useClaudeForBorderline)}
+                className={`w-9 h-5 rounded-full transition-colors relative ${useClaudeForBorderline ? "bg-indigo-600" : "bg-gray-700"}`}
               >
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${localUseClaude ? "left-4" : "left-0.5"}`} />
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${useClaudeForBorderline ? "left-4" : "left-0.5"}`} />
               </button>
               <span className="text-xs text-gray-400">
                 Use Claude Haiku for borderline scores (4–6) — better nuanced reasoning
@@ -95,8 +96,8 @@ export function QualifyTab({
               </button>
               {showPromptEditor && (
                 <textarea
-                  value={localPrompt}
-                  onChange={(e) => setLocalPrompt(e.target.value)}
+                  value={scoringPrompt}
+                  onChange={(e) => onPromptChange(e.target.value)}
                   placeholder="Leave blank to use the default cold-calling agency prompt…"
                   rows={5}
                   className="mt-2 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 font-mono"
@@ -106,9 +107,18 @@ export function QualifyTab({
 
             <ErrBanner msg={error} />
 
+            {/* Partial-failure warnings from qualify run */}
+            {warnings.length > 0 && (
+              <div className="rounded-lg bg-amber-900/20 border border-amber-800 px-3 py-2 text-xs text-amber-300 space-y-0.5">
+                <p className="font-medium mb-1">⚠ {warnings.length} lead(s) scored with fallback (manual review):</p>
+                {warnings.slice(0, 5).map((w, i) => <p key={i} className="text-amber-400/70 truncate">{w}</p>)}
+                {warnings.length > 5 && <p className="text-amber-400/50">+{warnings.length - 5} more…</p>}
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
-                onClick={() => onQualify(localPrompt, localUseClaude)}
+                onClick={() => onQualify(scoringPrompt, useClaudeForBorderline)}
                 disabled={qualifying}
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
               >

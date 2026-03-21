@@ -10,6 +10,7 @@ type Props = {
   selected: Set<number>;
   importing: boolean;
   imported: number;
+  skipped: number;
   error: string;
   scoreThreshold: number;
   onToggleAll: () => void;
@@ -19,7 +20,7 @@ type Props = {
 };
 
 export function ImportTab({
-  leads, selected, importing, imported, error,
+  leads, selected, importing, imported, skipped, error,
   scoreThreshold, onToggleAll, onToggle, onSelectAboveThreshold, onImport,
 }: Props) {
   const qualifiedLeads = leads.filter((l) => l.ai_score !== undefined);
@@ -67,7 +68,8 @@ export function ImportTab({
               <div className="flex-1 text-xs text-gray-500">{selected.size} of {leads.length} selected</div>
               {imported > 0 && (
                 <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> {imported} imported to CRM
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {imported} imported{skipped > 0 ? ` · ${skipped} skipped (duplicates)` : ""}
                 </span>
               )}
               <button

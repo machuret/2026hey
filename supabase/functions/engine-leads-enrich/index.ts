@@ -98,48 +98,56 @@ serve(async (req) => {
 
   const enriched: LeadOut[] = leads.map((l) => ({ ...l, enriched_at: new Date().toISOString() }));
 
+  const CONCURRENCY = 5;
+
+  /** Run a batch of async tasks with a max concurrency limit */
+  async function withConcurrency<T>(
+    items: T[],
+    fn: (item: T) => Promise<void>,
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += CONCURRENCY) {
+      await Promise.allSettled(items.slice(i, i + CONCURRENCY).map(fn));
+    }
+  }
+
   // ── Actor 1: Decision-maker name + email extractor ───────────────
   if (actors.includes("decision-maker")) {
     const websiteLeads = enriched.filter((l) => l.website && !l.email);
-    if (websiteLeads.length > 0) {
-      for (const lead of websiteLeads) {
-        try {
-          const items = await runApifyActor(
-            "dominic-quaiser/decision-maker-name-email-extractor",
-            { startUrls: [{ url: lead.website }], maxPagesToProcess: 3 },
-            45000,
-          );
-          if (items.length > 0) {
-            const item = items[0] as Record<string, unknown>;
-            if (item.email && !lead.email) lead.enriched_email = String(item.email);
-            if (item.name  && !lead.decision_maker) lead.decision_maker = String(item.name);
-          }
-        } catch { /* non-fatal per-lead failure */ }
-      }
-    }
+    await withConcurrency(websiteLeads, async (lead) => {
+      try {
+        const items = await runApifyActor(
+          "dominic-quaiser/decision-maker-name-email-extractor",
+          { startUrls: [{ url: lead.website }], maxPagesToProcess: 3 },
+          45000,
+        );
+        if (items.length > 0) {
+          const item = items[0] as Record<string, unknown>;
+          if (item.email && !lead.email) lead.enriched_email = String(item.email);
+          if (item.name  && !lead.decision_maker) lead.decision_maker = String(item.name);
+        }
+      } catch { /* non-fatal per-lead failure */ }
+    });
   }
 
   // ── Actor 2: Snacci — phones + socials from website ──────────────
   if (actors.includes("snacci")) {
     const phoneLeads = enriched.filter((l) => l.website && !l.phone);
-    if (phoneLeads.length > 0) {
-      for (const lead of phoneLeads) {
-        try {
-          const domain = extractDomain(lead.website);
-          const items = await runApifyActor(
-            "peterasorensen/snacci",
-            { queries: [domain] },
-            30000,
-          );
-          if (items.length > 0) {
-            const item = items[0] as Record<string, unknown>;
-            const phone = item.phone ?? item.phoneNumber ??
-              (Array.isArray(item.phones) ? item.phones[0] : undefined);
-            if (phone && !lead.phone) lead.enriched_phone = String(phone);
-          }
-        } catch { /* non-fatal */ }
-      }
-    }
+    await withConcurrency(phoneLeads, async (lead) => {
+      try {
+        const domain = extractDomain(lead.website);
+        const items = await runApifyActor(
+          "peterasorensen/snacci",
+          { queries: [domain] },
+          30000,
+        );
+        if (items.length > 0) {
+          const item = items[0] as Record<string, unknown>;
+          const phone = item.phone ?? item.phoneNumber ??
+            (Array.isArray(item.phones) ? item.phones[0] : undefined);
+          if (phone && !lead.phone) lead.enriched_phone = String(phone);
+        }
+      } catch { /* non-fatal */ }
+    });
   }
 
   // Merge enriched fields back into base fields

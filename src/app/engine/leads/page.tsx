@@ -30,15 +30,19 @@ export default function LeadsPage() {
   const [enrichError, setEnrichError] = useState("");
   const [enrichCount, setEnrichCount] = useState(0);
 
-  // ── Qualify state ─────────────────────────────────────────────────
-  const [qualifying, setQualifying]   = useState(false);
-  const [qualifyError, setQualifyError] = useState("");
-  const [scoreThreshold, setScoreThreshold] = useState(5);
+  // ── Qualify state ─────────────────────────────────────────────
+  const [qualifying, setQualifying]       = useState(false);
+  const [qualifyError, setQualifyError]   = useState("");
+  const [qualifyWarnings, setQualifyWarnings] = useState<string[]>([]);
+  const [scoreThreshold, setScoreThreshold]   = useState(5);
+  const [useClaudeForBorderline, setUseClaudeForBorderline] = useState(false);
+  const [scoringPrompt, setScoringPrompt] = useState("");
 
-  // ── Import state ──────────────────────────────────────────────────
+  // ── Import state ──────────────────────────────────────────────
   const [selected, setSelected]   = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
   const [imported, setImported]   = useState(0);
+  const [skipped, setSkipped]     = useState(0);
   const [importError, setImportError] = useState("");
 
   // ── Health ────────────────────────────────────────────────────────
@@ -49,22 +53,26 @@ export default function LeadsPage() {
 
   const checkHealth = useCallback(async () => {
     setHealth({ crm: { status: "checking", detail: "" }, apify: { status: "checking", detail: "" } });
+    // CRM: lightweight count-only query
     try {
-      const res  = await fetch("/api/engine/crm");
+      const res  = await fetch("/api/engine/crm?count=1", { signal: AbortSignal.timeout(8000) });
       const data = await res.json();
-      if (res.ok && Array.isArray(data.leads)) {
-        setHealth((h) => ({ ...h, crm: { status: "ok", detail: `${data.leads.length} leads in DB` } }));
+      if (res.ok) {
+        const count = data.count ?? (Array.isArray(data.leads) ? data.leads.length : "?");
+        setHealth((h) => ({ ...h, crm: { status: "ok", detail: `${count} leads in DB` } }));
       } else {
         setHealth((h) => ({ ...h, crm: { status: "error", detail: String(data.error ?? `HTTP ${res.status}`) } }));
       }
     } catch (e) {
       setHealth((h) => ({ ...h, crm: { status: "error", detail: String(e) } }));
     }
+    // Apify: edge fn reachability check
     try {
       const res  = await fetch("/api/engine/leads/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actor: "apify/google-maps-scraper", input: {}, maxItems: 0, _healthCheck: true }),
+        signal: AbortSignal.timeout(10000),
       });
       const data = await res.json();
       if (res.status === 500 && String(data.error).includes("APIFY_API_KEY not configured")) {
@@ -99,6 +107,7 @@ export default function LeadsPage() {
       const res  = await fetch("/api/engine/leads/scrape", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actor: actorId, input: buildActorInput(actorId, form), maxItems: form.maxItems }),
+        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
       if (data.success) {
@@ -106,8 +115,9 @@ export default function LeadsPage() {
         setSelected(new Set((data.leads ?? []).map((_: unknown, i: number) => i)));
         setTab("enrich");
       } else { setScrapeError(data.error ?? "Scrape failed"); }
-    } catch { setScrapeError("Network error — scrape failed"); }
-    finally { setScraping(false); }
+    } catch (e: unknown) {
+      setScrapeError(e instanceof Error && e.name === "TimeoutError" ? "Scrape timed out (120s) — try fewer results" : "Network error — scrape failed");
+    } finally { setScraping(false); }
   };
 
   const enrich = async () => {
@@ -117,27 +127,34 @@ export default function LeadsPage() {
       const res  = await fetch("/api/engine/leads/enrich", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leads }),
+        signal: AbortSignal.timeout(180000),
       });
       const data = await res.json();
       if (data.success) { setLeads(data.leads ?? leads); setEnrichCount(data.enrichedCount ?? 0); setTab("qualify"); }
       else { setEnrichError(data.error ?? "Enrichment failed"); }
-    } catch { setEnrichError("Network error — enrichment failed"); }
-    finally { setEnriching(false); }
+    } catch (e: unknown) {
+      setEnrichError(e instanceof Error && e.name === "TimeoutError" ? "Enrichment timed out — try a smaller batch (≤20 leads)" : "Network error — enrichment failed");
+    } finally { setEnriching(false); }
   };
 
-  const qualify = async (scoringPrompt: string, useClaudeForBorderline: boolean) => {
+  const qualify = async (prompt: string, useClaude: boolean) => {
     if (!leads.length) { setQualifyError("No leads to qualify"); return; }
-    setQualifying(true); setQualifyError("");
+    setQualifying(true); setQualifyError(""); setQualifyWarnings([]);
     try {
       const res  = await fetch("/api/engine/leads/qualify", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leads, scoringPrompt: scoringPrompt || undefined, useClaudeForBorderline }),
+        body: JSON.stringify({ leads, scoringPrompt: prompt || undefined, useClaudeForBorderline: useClaude }),
+        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
-      if (data.success) { setLeads(data.leads ?? leads); setTab("import"); }
-      else { setQualifyError(data.error ?? "Qualify failed"); }
-    } catch { setQualifyError("Network error — qualify failed"); }
-    finally { setQualifying(false); }
+      if (data.success) {
+        setLeads(data.leads ?? leads);
+        if (data.errors?.length) setQualifyWarnings(data.errors);
+        setTab("import");
+      } else { setQualifyError(data.error ?? "Qualify failed"); }
+    } catch (e: unknown) {
+      setQualifyError(e instanceof Error && e.name === "TimeoutError" ? "Scoring timed out — try a smaller batch (≤50 leads)" : "Network error — qualify failed");
+    } finally { setQualifying(false); }
   };
 
   const toggleAll = () => {
@@ -154,12 +171,14 @@ export default function LeadsPage() {
       const res  = await fetch("/api/engine/leads/import", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leads: toImport }),
+        signal: AbortSignal.timeout(30000),
       });
       const data = await res.json();
-      if (data.success) { setImported(data.imported); setSelected(new Set()); }
+      if (data.success) { setImported(data.imported); setSkipped(data.skipped ?? 0); setSelected(new Set()); }
       else { setImportError(data.error ?? "Import failed"); }
-    } catch { setImportError("Network error — import failed"); }
-    finally { setImporting(false); }
+    } catch (e: unknown) {
+      setImportError(e instanceof Error && e.name === "TimeoutError" ? "Import timed out — please retry" : "Network error — import failed");
+    } finally { setImporting(false); }
   };
   const selectAboveThreshold = () => {
     setSelected(new Set(
@@ -256,16 +275,21 @@ export default function LeadsPage() {
         {tab === "qualify" && (
           <QualifyTab
             leads={leads} selected={selected}
-            qualifying={qualifying} error={qualifyError}
-            scoreThreshold={scoreThreshold} useClaudeForBorderline={false} scoringPrompt=""
+            qualifying={qualifying} error={qualifyError} warnings={qualifyWarnings}
+            scoreThreshold={scoreThreshold}
+            useClaudeForBorderline={useClaudeForBorderline}
+            scoringPrompt={scoringPrompt}
             onQualify={qualify} onSkip={() => setTab("import")}
-            onThresholdChange={setScoreThreshold} onToggle={toggle}
+            onThresholdChange={setScoreThreshold}
+            onClaudeChange={setUseClaudeForBorderline}
+            onPromptChange={setScoringPrompt}
+            onToggle={toggle}
           />
         )}
         {tab === "import" && (
           <ImportTab
             leads={leads} selected={selected}
-            importing={importing} imported={imported} error={importError}
+            importing={importing} imported={imported} skipped={skipped} error={importError}
             scoreThreshold={scoreThreshold}
             onToggleAll={toggleAll} onToggle={toggle}
             onSelectAboveThreshold={selectAboveThreshold}
