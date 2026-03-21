@@ -5,17 +5,16 @@ export const dynamic = "force-dynamic";
 
 // GET /api/engine/objections
 export async function GET() {
-  const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   try {
     const db = getEngineAdmin();
     const { data, error } = await db
       .from("engine_objections")
       .select("*")
       .order("sort_order", { ascending: true });
-    if (error) return NextResponse.json({ error: error.message, code: error.code, hasServiceKey }, { status: 500 });
-    return NextResponse.json({ objections: data ?? [], hasServiceKey });
+    if (error) throw error;
+    return NextResponse.json({ objections: data ?? [] });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err), hasServiceKey }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch objections" }, { status: 500 });
   }
 }
 
