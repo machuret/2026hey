@@ -49,6 +49,15 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onDelete }: Props)
   const [tagInput, setTagInput]     = useState("");
   const [deleting, setDeleting]     = useState(false);
 
+  // Reset local editable state when the selected lead changes
+  useEffect(() => {
+    setNotes(lead.notes ?? "");
+    setTaskNote(lead.next_task_note ?? "");
+    setTaskAt(lead.next_task_at ? lead.next_task_at.slice(0, 16) : "");
+    setTab("details");
+    setHistory([]);
+  }, [lead.id]);
+
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {

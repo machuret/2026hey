@@ -108,8 +108,11 @@ export default function CallFlowPage() {
   };
 
   const deleteNode = async (id: string) => {
-    await fetch(`/api/engine/nodes/${id}`, { method: "DELETE" });
+    const snapshot = nodes;
     setNodes((prev) => prev.filter((n) => n.id !== id));
+    const res = await fetch(`/api/engine/nodes/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!data.success) setNodes(snapshot);
   };
 
   return (

@@ -2,11 +2,8 @@
 // Calls Apify to scrape leads based on user-supplied actor + input
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const APIFY_API_KEY    = Deno.env.get("APIFY_API_KEY")!;
-const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const APIFY_API_KEY   = Deno.env.get("APIFY_API_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const cors = {
@@ -22,23 +19,19 @@ function json(data: unknown, status = 200) {
   });
 }
 
-async function verifyAuth(req: Request): Promise<boolean> {
+function verifyAuth(req: Request): boolean {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth.startsWith("Bearer ")) return false;
+  // Service-role key grants access; all engine API routes forward it
   const token = auth.replace("Bearer ", "");
-  if (token === SERVICE_ROLE_KEY) return true;
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: auth } },
-  });
-  const { data: { user } } = await supabase.auth.getUser();
-  return !!user;
+  return token === SERVICE_ROLE_KEY;
 }
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const ok = await verifyAuth(req);
+  const ok = verifyAuth(req);
   if (!ok) return json({ error: "Unauthorized" }, 401);
 
   if (!APIFY_API_KEY) return json({ error: "APIFY_API_KEY not configured" }, 500);

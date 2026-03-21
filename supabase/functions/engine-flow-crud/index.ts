@@ -24,12 +24,14 @@ function json(data: unknown, status = 200) {
 async function verifyAuth(req: Request): Promise<boolean> {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth.startsWith("Bearer ")) return false;
+  // Check cheap string comparison first before making a network call
   const token = auth.replace("Bearer ", "");
   if (token === SERVICE_ROLE_KEY) return true;
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: auth } },
   });
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error) return false;
   return !!user;
 }
 
@@ -50,14 +52,16 @@ serve(async (req: Request) => {
   if (target === "tree") {
     if (req.method === "GET") {
       if (id) {
-        // Get full tree with all nodes
-        const [{ data: tree }, { data: nodes }] = await Promise.all([
+        const [{ data: tree, error: te }, { data: nodes, error: ne }] = await Promise.all([
           db.from("call_flow_trees").select("*").eq("id", id).single(),
           db.from("call_flow_nodes").select("*").eq("tree_id", id).order("sort_order"),
         ]);
+        if (te || !tree) return json({ error: "Tree not found" }, 404);
+        if (ne) return json({ error: ne.message }, 500);
         return json({ tree, nodes: nodes ?? [] });
       }
-      const { data } = await db.from("call_flow_trees").select("*").order("created_at", { ascending: false });
+      const { data, error } = await db.from("call_flow_trees").select("*").order("created_at", { ascending: false });
+      if (error) return json({ error: error.message }, 500);
       return json({ trees: data ?? [] });
     }
 
@@ -95,6 +99,8 @@ serve(async (req: Request) => {
   if (target === "node") {
     if (req.method === "POST") {
       const body = await req.json();
+      if (!body.tree_id) return json({ error: "Missing tree_id" }, 400);
+      if (!body.label || typeof body.label !== "string" || !body.label.trim()) return json({ error: "Missing label" }, 400);
       if (!VALID_NODE_TYPES.includes(body.node_type)) return json({ error: "Invalid node_type" }, 400);
       const { data, error } = await db.from("call_flow_nodes").insert({
         tree_id:    body.tree_id,

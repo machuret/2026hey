@@ -24,14 +24,15 @@ function json(data: unknown, status = 200) {
 async function verifyAuth(req: Request): Promise<boolean> {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth.startsWith("Bearer ")) return false;
+  // Check cheap string comparison first before making a network call
+  const token = auth.replace("Bearer ", "");
+  if (token === SERVICE_ROLE_KEY) return true;
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: auth } },
   });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) return true;
-  // Also allow service-role key
-  const token = auth.replace("Bearer ", "");
-  return token === SERVICE_ROLE_KEY;
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error) return false;
+  return !!user;
 }
 
 const VALID_STAGES = ["new","contacted","follow_up","negotiation","closed_won","closed_lost"];
