@@ -1,6 +1,6 @@
 "use client";
 
-import { Zap, Loader2, ArrowRight } from "lucide-react";
+import { Zap, Loader2, ArrowRight, Download, Sparkles } from "lucide-react";
 import { ActorDef, ActorCategory, CATEGORY_META, ScrapedLead } from "@/app/engine/leads/types";
 import { ActorPicker } from "./ActorPicker";
 import { LeadsTable } from "./LeadsTable";
@@ -30,12 +30,17 @@ type Props = {
   onFormChange: (patch: Partial<FormState>) => void;
   onScrape: () => void;
   onToggle: (i: number) => void;
+  onSave: () => void;
+  onEnrichAndSave: () => void;
+  saving: boolean;
+  saveMsg: string;
 };
 
 export function ScrapeTab({
   actorId, selectedActor, catFilter, filteredActors,
   form, scraping, error, leads, selected,
   onActorChange, onCatChange, onFormChange, onScrape, onToggle,
+  onSave, onEnrichAndSave, saving, saveMsg,
 }: Props) {
   const { query, location, jobTitle, industry, urlInput, maxItems } = form;
   const inp = selectedActor.inputFields;
@@ -143,11 +148,47 @@ export function ScrapeTab({
       </div>
 
       {leads.length > 0 && (
-        <div>
-          <p className="text-xs text-gray-500 mb-3">{leads.length} leads scraped — preview below</p>
-          <LeadsTable rows={leads.slice(0, 5)} selected={selected} onToggle={onToggle} />
-          {leads.length > 5 && (
-            <p className="text-[10px] text-gray-600 mt-1 text-center">+{leads.length - 5} more</p>
+        <div className="space-y-4">
+          {/* Action bar */}
+          <div className="rounded-2xl bg-gray-900 border border-gray-800 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-white">{leads.length} leads scraped</p>
+              {saveMsg && (
+                <span className="text-xs text-emerald-400">{saveMsg}</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={onSave}
+                disabled={saving}
+                className="flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Save to CRM
+              </button>
+              <button
+                onClick={onEnrichAndSave}
+                disabled={saving}
+                className="flex items-center gap-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Find Emails & Save
+              </button>
+              <button
+                onClick={onScrape}
+                disabled={scraping}
+                className="flex items-center gap-2 rounded-xl border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-300 hover:text-white hover:border-gray-600 disabled:opacity-50 transition-colors"
+              >
+                {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Scrape Again
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500">Preview (first 10)</p>
+          <LeadsTable rows={leads.slice(0, 10)} selected={selected} onToggle={onToggle} />
+          {leads.length > 10 && (
+            <p className="text-[10px] text-gray-600 mt-1 text-center">+{leads.length - 10} more in pipeline</p>
           )}
         </div>
       )}

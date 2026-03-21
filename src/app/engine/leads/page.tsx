@@ -45,6 +45,10 @@ export default function LeadsPage() {
   const [skipped, setSkipped]     = useState(0);
   const [importError, setImportError] = useState("");
 
+  // ── Quick-save state (scrape tab) ────────────────────────────
+  const [saving, setSaving]   = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
   // ── Health ────────────────────────────────────────────────────────
   const [health, setHealth] = useState<ApiHealth>({
     crm:   { status: "checking", detail: "" },
@@ -180,6 +184,39 @@ export default function LeadsPage() {
       setImportError(e instanceof Error && e.name === "TimeoutError" ? "Import timed out — please retry" : "Network error — import failed");
     } finally { setImporting(false); }
   };
+
+  const saveAll = async (withEnrich = false) => {
+    if (!leads.length) return;
+    setSaving(true); setSaveMsg("");
+    try {
+      let toSave = leads;
+      if (withEnrich) {
+        setSaveMsg("Finding emails…");
+        const res  = await fetch("/api/engine/leads/enrich", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leads }),
+          signal: AbortSignal.timeout(120000),
+        });
+        const data = await res.json();
+        if (data.success) toSave = data.leads ?? leads;
+      }
+      setSaveMsg("Saving…");
+      const res  = await fetch("/api/engine/leads/import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leads: toSave }),
+        signal: AbortSignal.timeout(30000),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLeads(toSave);
+        setSaveMsg(`✓ ${data.imported} saved, ${data.skipped ?? 0} duplicates skipped`);
+      } else {
+        setSaveMsg(`Error: ${data.error ?? "Save failed"}`);
+      }
+    } catch {
+      setSaveMsg("Network error — save failed");
+    } finally { setSaving(false); }
+  };
   const selectAboveThreshold = () => {
     setSelected(new Set(
       leads.map((l, i) => (l.ai_score ?? 0) >= scoreThreshold ? i : -1).filter((i) => i >= 0),
@@ -263,6 +300,9 @@ export default function LeadsPage() {
             onActorChange={setActorId} onCatChange={setCatFilter}
             onFormChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
             onScrape={scrape} onToggle={toggle}
+            onSave={() => saveAll(false)}
+            onEnrichAndSave={() => saveAll(true)}
+            saving={saving} saveMsg={saveMsg}
           />
         )}
         {tab === "enrich" && (
