@@ -1,22 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Youtube, Instagram, Link2, Loader2, Trash2, ChevronDown, ChevronUp,
   Sparkles, CheckCircle2, AlertCircle, FileText, Clock,
 } from "lucide-react";
-
-type Transcript = {
-  id: string;
-  title: string;
-  author: string | null;
-  source: "youtube" | "instagram" | "tiktok" | "other";
-  source_url: string;
-  analysis: string | null;
-  created_at: string;
-};
-
-type TranscriptFull = Transcript & { content: string };
+import type { Transcript, TranscriptFull } from "@/types/engine";
+import { SOURCE_COLOURS, detectTranscriptSource } from "@/types/engine";
 
 const SOURCE_OPTIONS = [
   { value: "youtube",   label: "YouTube",   icon: Youtube },
@@ -24,13 +14,6 @@ const SOURCE_OPTIONS = [
   { value: "tiktok",    label: "TikTok",    icon: Link2 },
   { value: "other",     label: "Other",     icon: Link2 },
 ] as const;
-
-const SOURCE_COLOURS: Record<string, string> = {
-  youtube:   "bg-red-900/30 text-red-300 border-red-800/50",
-  instagram: "bg-purple-900/30 text-purple-300 border-purple-800/50",
-  tiktok:    "bg-pink-900/30 text-pink-300 border-pink-800/50",
-  other:     "bg-gray-800 text-gray-400 border-gray-700",
-};
 
 export default function AdminTranscribePage() {
   const [url, setUrl]                   = useState("");
@@ -56,13 +39,11 @@ export default function AdminTranscribePage() {
 
   useEffect(() => { fetchTranscripts(); }, [fetchTranscripts]);
 
-  // Auto-detect source label from URL
-  const detectedSource = (() => {
-    if (/youtube\.com|youtu\.be/.test(url)) return "youtube";
-    if (/instagram\.com/.test(url))         return "instagram";
-    if (/tiktok\.com/.test(url))            return "tiktok";
-    return url ? "other" : null;
-  })();
+  // Auto-detect source label from URL — memoised so it doesn't recompute every render
+  const detectedSource = useMemo(() => {
+    if (!url.trim()) return null;
+    return detectTranscriptSource(url);
+  }, [url]);
 
   const runTranscribe = async () => {
     if (!url.trim()) { setError("Enter a URL to transcribe"); return; }
@@ -82,6 +63,8 @@ export default function AdminTranscribePage() {
       }
       setSuccess(`Transcribed: "${data.title}"`);
       setUrl("");
+      // Auto-clear success banner after 4 seconds
+      setTimeout(() => setSuccess(""), 4000);
       await fetchTranscripts();
     } catch {
       setError("Network error — please try again");

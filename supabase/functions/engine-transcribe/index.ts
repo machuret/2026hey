@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const APIFY_API_KEY     = Deno.env.get("APIFY_API_KEY")!;
+const SUPABASE_URL      = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const APIFY_API_KEY     = Deno.env.get("APIFY_API_KEY") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -37,6 +37,8 @@ serve(async (req) => {
   if (!verifyAuth(req)) return json({ error: "Unauthorized" }, 401);
 
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  if (!APIFY_API_KEY) return json({ error: "APIFY_API_KEY not configured" }, 500);
 
   let body: { url: string; save?: boolean };
   try {
@@ -76,7 +78,8 @@ serve(async (req) => {
 
   // Normalise fields across different actor output schemas
   const title   = String(item.title   ?? item.videoTitle   ?? item.name   ?? "Untitled");
-  const author  = String(item.author  ?? item.channel      ?? item.ownerUsername ?? item.username ?? "");
+  const rawAuthor = item.author ?? item.channel ?? item.ownerUsername ?? item.username;
+  const author  = rawAuthor ? String(rawAuthor) : null;
   const content = String(
     item.transcript ?? item.text ?? item.captions ??
     item.transcriptText ?? item.subtitles ?? ""
@@ -87,11 +90,11 @@ serve(async (req) => {
   }
 
   // ── 2. Optionally save to Supabase ───────────────────────────────
-  if (save) {
-    const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { persistSession: false },
-    });
+  const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
 
+  if (save) {
     const { error: dbErr } = await db.from("engine_transcripts").insert({
       title,
       author,

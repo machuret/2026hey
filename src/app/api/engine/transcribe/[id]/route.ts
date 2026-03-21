@@ -50,6 +50,9 @@ export async function PATCH(
     const { id } = await params;
     const db = getEngineAdmin();
     const body = await req.json();
+    if (typeof body.analysis !== "string") {
+      return NextResponse.json({ error: "analysis must be a string" }, { status: 400 });
+    }
     const { data, error } = await db
       .from("engine_transcripts")
       .update({ analysis: body.analysis })
@@ -57,6 +60,7 @@ export async function PATCH(
       .select()
       .single();
     if (error) throw error;
+    if (!data) return NextResponse.json({ error: "Transcript not found" }, { status: 404 });
     return NextResponse.json({ success: true, transcript: data });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
