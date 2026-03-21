@@ -15,9 +15,7 @@ export type ScrapedLead = {
   enriched_mobile?: string;
   enriched_at?: string;
   ai_score?: number;
-  ai_score_reason?: string;
   ai_signals?: string[];
-  call_opener?: string;
   raw?: Record<string, unknown>;
 };
 
@@ -121,9 +119,6 @@ export const CATEGORY_META: Record<ActorCategory, { label: string; colour: strin
   enrich: { label: "Enrich", colour: "bg-emerald-900/30 text-emerald-300 border-emerald-800/50" },
   intel:  { label: "Intel",  colour: "bg-amber-900/30 text-amber-300 border-amber-800/50" },
 };
-
-export const scoreColour = (s: number) =>
-  s >= 8 ? "text-emerald-400" : s >= 5 ? "text-amber-400" : "text-red-400";
 
 /** Pick the best available email from a lead */
 export function bestEmail(l: ScrapedLead): string {

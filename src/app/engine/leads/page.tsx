@@ -169,10 +169,10 @@ export default function LeadsPage() {
       const data = await res.json();
       if (data.success) {
         const enrichedMap = new Map(
-          (data.leads ?? []).map((l: ScrapedLead) => [l.company + "\0" + l.name, l])
+          (data.leads ?? []).map((l: ScrapedLead) => [l.website || l.company + "\0" + l.name, l])
         );
         setLeads((prev) => prev.map((l) =>
-          enrichedMap.get(l.company + "\0" + l.name) as ScrapedLead ?? l
+          enrichedMap.get(l.website || l.company + "\0" + l.name) as ScrapedLead ?? l
         ));
         setDmCount(data.enrichedCount ?? 0);
       } else { setDmError(data.error ?? "Apollo search failed"); }
@@ -194,10 +194,10 @@ export default function LeadsPage() {
       const data = await res.json();
       if (data.success) {
         const enrichedMap = new Map(
-          (data.leads ?? []).map((l: ScrapedLead) => [l.company + "\0" + l.name, l])
+          (data.leads ?? []).map((l: ScrapedLead) => [l.website || l.company + "\0" + l.name, l])
         );
         setLeads((prev) => prev.map((l) =>
-          enrichedMap.get(l.company + "\0" + l.name) as ScrapedLead ?? l
+          enrichedMap.get(l.website || l.company + "\0" + l.name) as ScrapedLead ?? l
         ));
         setContactsEnrichCount(data.enrichedCount ?? 0);
       } else { setContactsError(data.error ?? "Enrichment failed"); }
@@ -237,13 +237,18 @@ export default function LeadsPage() {
       let toSave = leads;
       if (withEnrich) {
         setSaveMsg("Finding emails…");
-        const res  = await fetch("/api/engine/leads/enrich", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leads }),
-          signal: AbortSignal.timeout(120000),
-        });
-        const data = await res.json();
-        if (data.success) toSave = data.leads ?? leads;
+        try {
+          const res  = await fetch("/api/engine/leads/enrich", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ leads }),
+            signal: AbortSignal.timeout(120000),
+          });
+          const data = await res.json();
+          if (data.success) toSave = data.leads ?? leads;
+          else setSaveMsg(`⚠ Enrich failed (${data.error ?? "unknown"}) — saving original data`);
+        } catch {
+          setSaveMsg("⚠ Enrich timed out — saving original data");
+        }
       }
       setSaveMsg("Saving…");
       const res  = await fetch("/api/engine/leads/import", {

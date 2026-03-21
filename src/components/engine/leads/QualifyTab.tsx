@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { Loader2, Brain, ArrowRight, Sparkles, SlidersHorizontal } from "lucide-react";
-import { ScrapedLead, scoreColour } from "@/app/engine/leads/types";
+import { ScrapedLead } from "@/app/engine/leads/types";
 import { LeadsTable } from "./LeadsTable";
 import { ErrBanner } from "./ErrBanner";
+
+const scoreColour = (s: number) =>
+  s >= 8 ? "text-emerald-400" : s >= 5 ? "text-amber-400" : "text-red-400";
 
 type Props = {
   leads: ScrapedLead[];

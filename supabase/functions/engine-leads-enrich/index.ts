@@ -170,13 +170,16 @@ async function runApifyActor(
   timeoutSecs = 60,
 ): Promise<Record<string, unknown>[]> {
   if (!APIFY_API_KEY) return [];
-  const slug = actorSlug.replace("/", "~");
+  const slug = actorSlug.replaceAll("/", "~");
   try {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/${slug}/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=${timeoutSecs}`,
+      `https://api.apify.com/v2/acts/${slug}/run-sync-get-dataset-items?timeout=${timeoutSecs}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${APIFY_API_KEY}`,
+        },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout((timeoutSecs + 10) * 1000),
       },

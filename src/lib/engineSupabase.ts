@@ -32,6 +32,7 @@ export async function proxyEdgeFn(
   req: NextRequest,
   searchParams: Record<string, string> = {},
   body?: unknown,
+  timeoutMs = 290_000,
 ): Promise<NextResponse> {
   try {
     const url = new URL(edgeFnUrl(fnName));
@@ -48,6 +49,7 @@ export async function proxyEdgeFn(
         apikey: SUPABASE_ANON_KEY!,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

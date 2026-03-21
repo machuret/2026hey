@@ -266,7 +266,7 @@ export default function TrainingPage() {
     if (recognitionRef.current) recognitionRef.current.stop();
 
     const finalMessages = messagesRef.current;
-    if (finalMessages.length < 4) return; // too short to coach
+    if (finalMessages.filter((m) => m.role === "user").length < 2) return; // need at least 2 user turns to coach
 
     setCoaching(true);
     try {
@@ -310,7 +310,7 @@ export default function TrainingPage() {
     recognition.onend    = () => setListening(false);
     recognition.onerror  = () => setListening(false);
     recognition.onresult = (e) => {
-      const t = e.results.map((r) => r[0].transcript).join("");
+      const t = Array.from(e.results).map((r) => r[0].transcript).join("");
       setTranscript(t);
       if (e.results[e.results.length - 1].isFinal) {
         recognition.stop();
