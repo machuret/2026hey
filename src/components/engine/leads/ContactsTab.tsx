@@ -106,7 +106,7 @@ export function ContactsTab({ leads, enriching, error, enrichCount, dmFinding, d
         {missingDM.length > 0 && (
           <button
             onClick={onFindDMs}
-            disabled={dmFinding || leads.length === 0}
+            disabled={dmFinding}
             className="flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
           >
             {dmFinding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}

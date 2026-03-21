@@ -97,9 +97,6 @@ export default function LeadsPage() {
     () => catFilter === "all" ? ACTORS : ACTORS.filter((a) => a.category === catFilter),
     [catFilter],
   );
-  const qualifiedLeads = useMemo(() => leads.filter((l) => l.ai_score !== undefined), [leads]);
-  void qualifiedLeads;
-
   // ── Pipeline actions ──────────────────────────────────────────────
   const scrape = async () => {
     const inp = selectedActor.inputFields;
@@ -172,10 +169,10 @@ export default function LeadsPage() {
       const data = await res.json();
       if (data.success) {
         const enrichedMap = new Map(
-          (data.leads ?? []).map((l: ScrapedLead) => [l.company + l.name, l])
+          (data.leads ?? []).map((l: ScrapedLead) => [l.company + "\0" + l.name, l])
         );
         setLeads((prev) => prev.map((l) =>
-          enrichedMap.get(l.company + l.name) as ScrapedLead ?? l
+          enrichedMap.get(l.company + "\0" + l.name) as ScrapedLead ?? l
         ));
         setDmCount(data.enrichedCount ?? 0);
       } else { setDmError(data.error ?? "Apollo search failed"); }
@@ -197,10 +194,10 @@ export default function LeadsPage() {
       const data = await res.json();
       if (data.success) {
         const enrichedMap = new Map(
-          (data.leads ?? []).map((l: ScrapedLead) => [l.company + l.name, l])
+          (data.leads ?? []).map((l: ScrapedLead) => [l.company + "\0" + l.name, l])
         );
         setLeads((prev) => prev.map((l) =>
-          enrichedMap.get(l.company + l.name) as ScrapedLead ?? l
+          enrichedMap.get(l.company + "\0" + l.name) as ScrapedLead ?? l
         ));
         setContactsEnrichCount(data.enrichedCount ?? 0);
       } else { setContactsError(data.error ?? "Enrichment failed"); }

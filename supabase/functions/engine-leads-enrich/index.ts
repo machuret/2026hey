@@ -245,9 +245,9 @@ async function apolloChain(lead: LeadIn): Promise<{
   }
 
   const contact = enriched[0] as Record<string, unknown>;
-  const email  = String(contact.email         ?? "");
-  const phone  = String(contact.phone_number  ?? contact.phone ?? "");
-  const mobile = String(contact.mobile_phone  ?? contact.mobile ?? "");
+  const email  = (contact.email         as string) || "";
+  const phone  = (contact.phone_number  as string) || (contact.phone  as string) || "";
+  const mobile = (contact.mobile_phone  as string) || (contact.mobile as string) || "";
 
   return { decision_maker: personName, dm_title: personTitle, email, phone, mobile };
 }

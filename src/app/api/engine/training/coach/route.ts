@@ -20,7 +20,8 @@ export type CoachingReport = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, scenarioName } = await req.json();
+    const { messages, scenarioName = "" } = await req.json();
+    const safeScenarioName = String(scenarioName).replace(/"/g, "'").slice(0, 100);
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: "messages array is required" }, { status: 400 });
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
       .join("\n");
 
     const systemPrompt = `You are an expert cold calling coach analysing a roleplay session.
-The scenario is: "${scenarioName || "Cold call"}".
+The scenario is: "${safeScenarioName || "Cold call"}".
 You will receive a transcript and return a JSON coaching report.
 
 Return ONLY valid JSON matching this exact structure:
@@ -113,17 +114,24 @@ Be specific and actionable. Reference actual lines from the transcript.`;
 
     const data = await res.json();
     const raw = data.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw);
+    let parsed: {
+      score?: number;
+      objections?: CoachingReport["objections"];
+      wentWell?: string[];
+      improve?: string[];
+      summary?: string;
+    } = {};
+    try { parsed = JSON.parse(raw); } catch { /* use empty defaults below */ }
 
     const report: CoachingReport = {
-      score: parsed.score ?? 5,
+      score: typeof parsed.score === "number" ? parsed.score : 5,
       talkRatio,
       fillerWords,
       fillerTotal,
-      objections: parsed.objections ?? [],
-      wentWell: parsed.wentWell ?? [],
-      improve: parsed.improve ?? [],
-      summary: parsed.summary ?? "",
+      objections: Array.isArray(parsed.objections) ? parsed.objections : [],
+      wentWell:   Array.isArray(parsed.wentWell)   ? parsed.wentWell   : [],
+      improve:    Array.isArray(parsed.improve)     ? parsed.improve    : [],
+      summary:    typeof parsed.summary === "string" ? parsed.summary   : "",
     };
 
     return NextResponse.json({ report });
