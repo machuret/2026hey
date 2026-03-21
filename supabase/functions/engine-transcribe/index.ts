@@ -1,10 +1,14 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL      = Deno.env.get("SUPABASE_URL") ?? "";
-const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const APIFY_API_KEY     = Deno.env.get("APIFY_API_KEY") ?? "";
-// SERVICE_ROLE_KEY used only for the Supabase DB client below
+const SUPABASE_URL     = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const APIFY_API_KEY    = Deno.env.get("APIFY_API_KEY") ?? "";
+
+// Hoist DB client — one instance per cold start, not per request
+const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -26,7 +30,7 @@ function detectSource(url: string): "youtube" | "instagram" | "tiktok" | "other"
   return "other";
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -46,15 +50,22 @@ serve(async (req) => {
   const source = detectSource(url);
 
   // ── 1. Run Apify actor ───────────────────────────────────────────
-  // agentx/video-transcript handles YouTube, Instagram, TikTok + 1000+ platforms
-  const runRes = await fetch(
-    `https://api.apify.com/v2/acts/agentx~video-transcript/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=120`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ video_url: url }),
-    }
-  );
+  // agentx~video-transcript supports YouTube, Instagram, TikTok + 1000+ platforms
+  let runRes: Response;
+  try {
+    runRes = await fetch(
+      `https://api.apify.com/v2/acts/agentx~video-transcript/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=120`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_url: url }),
+        signal: AbortSignal.timeout(130_000),
+      }
+    );
+  } catch (fetchErr) {
+    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    return json({ error: `Apify request failed: ${msg}` }, 502);
+  }
 
   if (!runRes.ok) {
     const err = await runRes.text();
@@ -95,28 +106,26 @@ serve(async (req) => {
     ).trim();
   }
 
-  // Last resort — find the longest string value in the item
+  // Last resort — find the longest string value that looks like natural language (not a URL or ID)
   if (!content) {
     const longest = Object.values(item)
-      .filter((v) => typeof v === "string" && v.length > 50)
-      .sort((a, b) => (b as string).length - (a as string).length)[0] as string | undefined;
+      .filter((v): v is string =>
+        typeof v === "string" &&
+        v.length > 100 &&
+        !v.startsWith("http") &&
+        !v.startsWith("www.")
+      )
+      .sort((a, b) => b.length - a.length)[0];
     if (longest) content = longest;
   }
 
   if (!content) {
-    // Return the raw keys to help diagnose what the actor actually returned
     return json({
-      error: "Transcript content was empty — actor returned unknown schema",
-      debug_keys: Object.keys(item),
-      debug_sample: JSON.stringify(item).slice(0, 500),
+      error: "Transcript content was empty — the video may have no captions or the URL may be private",
     }, 422);
   }
 
   // ── 2. Optionally save to Supabase ───────────────────────────────
-  const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-    auth: { persistSession: false },
-  });
-
   if (save) {
     const { error: dbErr } = await db.from("engine_transcripts").insert({
       title,

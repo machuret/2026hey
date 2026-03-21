@@ -1,21 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Loader2, BookOpen, Trash2, Pencil, Check, X, ChevronDown, ChevronUp, AlertTriangle, GripVertical } from "lucide-react";
+import { Plus, Loader2, BookOpen, Trash2, Pencil, Check, X, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import type { Training } from "@/types/engine";
 import { VALID_VOICES } from "@/types/engine";
+import ObjectionsTab, { type Objection } from "@/components/engine/training/ObjectionsTab";
 
 const VOICES = VALID_VOICES;
 
 const BLANK: Omit<Training, "id" | "created_at" | "updated_at"> = {
   name: "", description: "", prompt: "", voice: "alloy", is_active: true, sort_order: 0,
-};
-
-type Objection = {
-  id: string;
-  label: string;
-  sort_order: number;
-  is_active: boolean;
 };
 
 type Tab = "training" | "objections";
@@ -34,12 +28,8 @@ export default function AdminTrainingPage() {
   const [editing, setEditing]     = useState<Record<string, Training>>({});
 
   // ── Objections state ──
-  const [objections, setObjections]         = useState<Objection[]>([]);
-  const [objLoading, setObjLoading]         = useState(false);
-  const [objSaving, setObjSaving]           = useState(false);
-  const [newObjLabel, setNewObjLabel]       = useState("");
-  const [editingObj, setEditingObj]         = useState<Record<string, string>>({});
-  const [objSavingId, setObjSavingId]       = useState<string | null>(null);
+  const [objections, setObjections] = useState<Objection[]>([]);
+  const [objLoading, setObjLoading] = useState(false);
 
   const fetchTrainings = useCallback(async () => {
     setLoading(true);
@@ -120,43 +110,24 @@ export default function AdminTrainingPage() {
 
   useEffect(() => { if (tab === "objections") fetchObjections(); }, [tab, fetchObjections]);
 
-  const addObjection = async () => {
-    if (!newObjLabel.trim()) return;
-    setObjSaving(true);
-    try {
-      const res = await fetch("/api/engine/objections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: newObjLabel.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setObjections((prev) => [...prev, data.objection]);
-        setNewObjLabel("");
-      }
-    } finally {
-      setObjSaving(false);
-    }
+  const addObjection = async (label: string) => {
+    const res = await fetch("/api/engine/objections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+    const data = await res.json();
+    if (data.success) setObjections((prev) => [...prev, data.objection]);
   };
 
-  const saveObjEdit = async (id: string) => {
-    const label = editingObj[id];
-    if (!label?.trim()) return;
-    setObjSavingId(id);
-    try {
-      const res = await fetch(`/api/engine/objections/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: label.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setObjections((prev) => prev.map((o) => o.id === id ? data.objection : o));
-        setEditingObj((prev) => { const n = { ...prev }; delete n[id]; return n; });
-      }
-    } finally {
-      setObjSavingId(null);
-    }
+  const editObjection = async (id: string, label: string) => {
+    const res = await fetch(`/api/engine/objections/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+    const data = await res.json();
+    if (data.success) setObjections((prev) => prev.map((o) => o.id === id ? data.objection : o));
   };
 
   const toggleObjActive = async (obj: Objection) => {
@@ -170,7 +141,6 @@ export default function AdminTrainingPage() {
   };
 
   const deleteObjection = async (id: string) => {
-    if (!confirm("Delete this objection?")) return;
     await fetch(`/api/engine/objections/${id}`, { method: "DELETE" });
     setObjections((prev) => prev.filter((o) => o.id !== id));
   };
@@ -224,105 +194,14 @@ export default function AdminTrainingPage() {
 
       {/* ── OBJECTIONS TAB ──────────────────────────────────────────── */}
       {tab === "objections" && (
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Add new */}
-          <div className="rounded-2xl bg-gray-900 border border-yellow-800/40 p-4">
-            <p className="text-xs font-semibold text-yellow-300 mb-3 flex items-center gap-1.5">
-              <Plus className="h-3 w-3" /> Add Objection
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={newObjLabel}
-                onChange={(e) => setNewObjLabel(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addObjection()}
-                placeholder="e.g. We already have a solution for that…"
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500"
-              />
-              <button
-                onClick={addObjection}
-                disabled={objSaving || !newObjLabel.trim()}
-                className="flex items-center gap-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 px-4 py-2 text-xs font-semibold text-white transition-colors whitespace-nowrap"
-              >
-                {objSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Add
-              </button>
-            </div>
-          </div>
-
-          {/* List */}
-          {objLoading ? (
-            <div className="flex items-center justify-center py-12 text-gray-500">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
-            </div>
-          ) : objections.length === 0 ? (
-            <div className="text-center py-12 text-gray-600">
-              <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No objections yet</p>
-              <p className="text-xs mt-1">Add one above or run the SQL migration to pre-load 15 defaults</p>
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-gray-900 border border-gray-800 overflow-hidden divide-y divide-gray-800">
-              {objections.map((obj) => (
-                <div key={obj.id} className={`flex items-center gap-3 px-4 py-3 ${!obj.is_active ? "opacity-40" : ""}` }>
-                  <GripVertical className="h-4 w-4 text-gray-700 shrink-0" />
-                  <div className={`h-2 w-2 rounded-full shrink-0 ${obj.is_active ? "bg-yellow-400" : "bg-gray-600"}`} />
-
-                  {editingObj[obj.id] !== undefined ? (
-                    <>
-                      <input
-                        value={editingObj[obj.id]}
-                        onChange={(e) => setEditingObj((p) => ({ ...p, [obj.id]: e.target.value }))}
-                        onKeyDown={(e) => e.key === "Enter" && saveObjEdit(obj.id)}
-                        autoFocus
-                        className="flex-1 bg-gray-800 border border-yellow-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none"
-                      />
-                      <button
-                        onClick={() => saveObjEdit(obj.id)}
-                        disabled={objSavingId === obj.id}
-                        className="p-1.5 text-emerald-400 hover:text-emerald-300"
-                      >
-                        {objSavingId === obj.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                      </button>
-                      <button
-                        onClick={() => setEditingObj((p) => { const n = { ...p }; delete n[obj.id]; return n; })}
-                        className="p-1.5 text-gray-500 hover:text-gray-300"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex-1 text-sm text-white">{obj.label}</span>
-                      <button
-                        onClick={() => toggleObjActive(obj)}
-                        title={obj.is_active ? "Deactivate" : "Activate"}
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
-                          obj.is_active
-                            ? "border-yellow-700 text-yellow-400 hover:bg-yellow-900/30"
-                            : "border-gray-700 text-gray-500 hover:bg-gray-800"
-                        }`}
-                      >
-                        {obj.is_active ? "active" : "off"}
-                      </button>
-                      <button
-                        onClick={() => setEditingObj((p) => ({ ...p, [obj.id]: obj.label }))}
-                        className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => deleteObjection(obj.id)}
-                        className="p-1.5 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ObjectionsTab
+          objections={objections}
+          loading={objLoading}
+          onAdd={addObjection}
+          onEdit={editObjection}
+          onToggle={toggleObjActive}
+          onDelete={deleteObjection}
+        />
       )}
 
       {/* ── TRAINING SESSIONS TAB ───────────────────────────────────── */}

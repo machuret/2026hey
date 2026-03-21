@@ -4,11 +4,29 @@ import { useState, useEffect } from "react";
 import { X, ChevronLeft, PhoneCall, AlertTriangle } from "lucide-react";
 import { FlowNode } from "../page";
 
-type GlobalObjection = { id: string; label: string; sort_order: number };
+type GlobalObjection = { id: string; label: string; sort_order: number; is_active: boolean };
 
 type Props = {
   nodes: FlowNode[];
   onExit: () => void;
+};
+
+const TYPE_COLOR: Record<string, string> = {
+  stage:     "bg-indigo-900/40 border-indigo-600 text-indigo-200",
+  objection: "bg-yellow-900/30 border-yellow-600 text-yellow-200",
+  response:  "bg-emerald-900/30 border-emerald-600 text-emerald-200",
+};
+
+const CHILD_BTN_COLOR: Record<string, string> = {
+  stage:     "border-indigo-700 hover:bg-indigo-900/40 text-indigo-300",
+  objection: "border-yellow-700 hover:bg-yellow-900/30 text-yellow-300",
+  response:  "border-emerald-700 hover:bg-emerald-900/30 text-emerald-300",
+};
+
+const CHILD_BADGE: Record<string, string> = {
+  stage:     "bg-indigo-900/60 text-indigo-400",
+  objection: "bg-yellow-900/60 text-yellow-400",
+  response:  "bg-emerald-900/60 text-emerald-400",
 };
 
 export default function FlowRunner({ nodes, onExit }: Props) {
@@ -20,10 +38,12 @@ export default function FlowRunner({ nodes, onExit }: Props) {
   const [virtualObjection, setVirtualObjection] = useState<GlobalObjection | null>(null);
 
   useEffect(() => {
-    fetch("/api/engine/objections")
+    const controller = new AbortController();
+    fetch("/api/engine/objections", { signal: controller.signal })
       .then((r) => r.json())
-      .then((d) => setGlobalObjections((d.objections ?? []).filter((o: GlobalObjection & { is_active: boolean }) => o.is_active)))
+      .then((d) => setGlobalObjections((d.objections ?? []).filter((o: GlobalObjection) => o.is_active)))
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   const childrenOf = (id: string) =>
@@ -33,10 +53,6 @@ export default function FlowRunner({ nodes, onExit }: Props) {
     setVirtualObjection(null);
     if (current) setHistory((h) => [...h, current]);
     setCurrent(node);
-  };
-
-  const selectGlobalObjection = (obj: GlobalObjection) => {
-    setVirtualObjection(obj);
   };
 
   const goBack = () => {
@@ -55,17 +71,6 @@ export default function FlowRunner({ nodes, onExit }: Props) {
 
   const children = current ? childrenOf(current.id) : [];
 
-  const typeColor: Record<string, string> = {
-    stage:     "bg-indigo-900/40 border-indigo-600 text-indigo-200",
-    objection: "bg-yellow-900/30 border-yellow-600 text-yellow-200",
-    response:  "bg-emerald-900/30 border-emerald-600 text-emerald-200",
-  };
-
-  const childBtnColor: Record<string, string> = {
-    stage:     "border-indigo-700 hover:bg-indigo-900/40 text-indigo-300",
-    objection: "border-yellow-700 hover:bg-yellow-900/30 text-yellow-300",
-    response:  "border-emerald-700 hover:bg-emerald-900/30 text-emerald-300",
-  };
 
   return (
     <div className="flex-1 flex flex-col bg-gray-950 overflow-hidden">
@@ -139,7 +144,7 @@ export default function FlowRunner({ nodes, onExit }: Props) {
         ) : (
           <>
             {/* Current node display */}
-            <div className={`rounded-2xl border-2 px-6 py-5 mb-6 ${typeColor[current.node_type]}`}>
+            <div className={`rounded-2xl border-2 px-6 py-5 mb-6 ${TYPE_COLOR[current.node_type]}`}>
               <div className="flex items-center gap-2 mb-2">
                 <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
                   current.node_type === "stage"
@@ -171,16 +176,10 @@ export default function FlowRunner({ nodes, onExit }: Props) {
                     <button
                       key={child.id}
                       onClick={() => navigate(child)}
-                      className={`text-left rounded-xl border px-4 py-3 transition-all ${childBtnColor[child.node_type]} hover:scale-[1.01]`}
+                      className={`text-left rounded-xl border px-4 py-3 transition-all ${CHILD_BTN_COLOR[child.node_type]} hover:scale-[1.01]`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                          child.node_type === "stage"
-                            ? "bg-indigo-900/60 text-indigo-400"
-                            : child.node_type === "objection"
-                              ? "bg-yellow-900/60 text-yellow-400"
-                              : "bg-emerald-900/60 text-emerald-400"
-                        }`}>{child.node_type}</span>
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${CHILD_BADGE[child.node_type]}`}>{child.node_type}</span>
                         <span className="text-sm font-medium">{child.label}</span>
                       </div>
                       {child.script && (
@@ -202,7 +201,7 @@ export default function FlowRunner({ nodes, onExit }: Props) {
                   {globalObjections.map((obj) => (
                     <button
                       key={obj.id}
-                      onClick={() => selectGlobalObjection(obj)}
+                      onClick={() => setVirtualObjection(obj)}
                       className="text-left rounded-xl border border-yellow-800/60 bg-yellow-950/20 px-4 py-2.5 text-yellow-300 hover:bg-yellow-900/30 hover:border-yellow-600 transition-all text-sm font-medium"
                     >
                       {obj.label}
