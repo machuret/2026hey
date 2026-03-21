@@ -46,13 +46,13 @@ serve(async (req) => {
   const source = detectSource(url);
 
   // ── 1. Run Apify actor ───────────────────────────────────────────
-  // bulletproof/instagram-transcript handles YouTube, Instagram, TikTok + 1000+ platforms
+  // agentx/video-transcript handles YouTube, Instagram, TikTok + 1000+ platforms
   const runRes = await fetch(
-    `https://api.apify.com/v2/acts/bulletproof~instagram-transcript/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=120`,
+    `https://api.apify.com/v2/acts/agentx~video-transcript/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=120`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ videoUrl: url, url }),
     }
   );
 
@@ -70,13 +70,22 @@ serve(async (req) => {
   const item = items[0];
 
   // Normalise fields across different actor output schemas
-  const title   = String(item.title   ?? item.videoTitle   ?? item.name   ?? "Untitled");
-  const rawAuthor = item.author ?? item.channel ?? item.ownerUsername ?? item.username;
+  const title   = String(item.title ?? item.videoTitle ?? item.name ?? item.video_title ?? "Untitled");
+  const rawAuthor = item.author ?? item.channel ?? item.channelName ?? item.ownerUsername ?? item.username ?? item.uploader;
   const author  = rawAuthor ? String(rawAuthor) : null;
-  const content = String(
-    item.transcript ?? item.text ?? item.captions ??
-    item.transcriptText ?? item.subtitles ?? ""
-  ).trim();
+  // agentx/video-transcript returns transcript as an array of segments or a plain string
+  let content: string;
+  if (Array.isArray(item.transcript)) {
+    content = (item.transcript as Array<{ text?: string; content?: string }>)
+      .map((s) => s.text ?? s.content ?? "")
+      .join(" ")
+      .trim();
+  } else {
+    content = String(
+      item.transcript ?? item.transcriptText ?? item.text ??
+      item.captions ?? item.subtitles ?? item.fullText ?? ""
+    ).trim();
+  }
 
   if (!content) {
     return json({ error: "Apify returned data but transcript content was empty" }, 422);
