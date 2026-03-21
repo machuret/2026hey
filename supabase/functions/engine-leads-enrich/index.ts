@@ -30,21 +30,30 @@ type LeadIn = {
 type LeadOut = LeadIn & {
   enriched_email?: string;
   enriched_phone?: string;
+  enriched_mobile?: string;
+  mobile?: string;
+  decision_maker?: string;
   enriched_at: string;
 };
 
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-const PHONE_RE = /(?:\+?61|0)[\s\-]?[2-9]\d{2}[\s\-]?\d{3}[\s\-]?\d{3,4}|(?:\+?1[\s\-]?)?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4}/g;
 
-const JUNK_EMAILS = new Set([
-  "example@", "info@example", "test@", "noreply@", "no-reply@",
-  "sentry@", "w3schools", "schema.org", "example.com",
-]);
+// Australian mobile: 04xx xxx xxx  | intl: +614x xxx xxx
+const MOBILE_RE = /(?:\+?61\s?4|04)\d{2}[\s\-]?\d{3}[\s\-]?\d{3}/g;
+// General phone (landline or any)
+const PHONE_RE  = /(?:\+?61|0)[\s\-]?[2-9]\d{2}[\s\-]?\d{3}[\s\-]?\d{3,4}/g;
+
+// Decision-maker title keywords
+const DM_TITLES = ["owner", "director", "ceo", "founder", "principal", "manager", "partner", "president", "head of"];
+
+const JUNK_EMAILS = [
+  "example", "noreply", "no-reply", "sentry", "w3schools", "schema.org",
+  "example.com", "test@", "user@", "email@", "your@",
+];
 
 function isJunkEmail(e: string): boolean {
   const low = e.toLowerCase();
-  return JUNK_EMAILS.has(low) || JUNK_EMAILS.has(low.split("@")[1] ?? "") ||
-    Array.from(JUNK_EMAILS).some((j) => low.includes(j));
+  return JUNK_EMAILS.some((j) => low.includes(j));
 }
 
 function normaliseUrl(url: string): string {
@@ -52,15 +61,43 @@ function normaliseUrl(url: string): string {
   return url.startsWith("http") ? url : `https://${url}`;
 }
 
-/** Crawl up to 3 pages of a site and extract emails/phones */
-async function crawlSite(rawUrl: string): Promise<{ email: string; phone: string }> {
-  const base = normaliseUrl(rawUrl);
-  if (!base) return { email: "", phone: "" };
+/** Try to extract a decision maker name from HTML using title keywords */
+function extractDecisionMaker(html: string): string {
+  // Look for patterns like: "John Smith, Owner" or "Owner: John Smith" or "Director - Jane Doe"
+  const lower = html.toLowerCase();
+  for (const title of DM_TITLES) {
+    // Pattern: Name followed by title (within 60 chars)
+    const afterIdx = lower.indexOf(title);
+    if (afterIdx === -1) continue;
 
-  // Pages to try in order: homepage, /contact, /about
-  const paths = ["", "/contact", "/contact-us", "/about"];
-  const emails = new Set<string>();
-  const phones = new Set<string>();
+    // Grab surrounding text (300 chars either side)
+    const chunk = html.slice(Math.max(0, afterIdx - 150), afterIdx + 150);
+
+    // Look for a capitalised name nearby (2 words, each 2-20 chars, capitalised)
+    const nameRe = /\b([A-Z][a-z]{1,19})\s+([A-Z][a-z]{1,19})\b/g;
+    let m: RegExpExecArray | null;
+    while ((m = nameRe.exec(chunk)) !== null) {
+      const name = `${m[1]} ${m[2]}`;
+      // Skip obvious non-names
+      if (["Contact Us", "Our Team", "About Us", "Head Of", "Read More", "Learn More"].includes(name)) continue;
+      return name;
+    }
+  }
+  return "";
+}
+
+/** Crawl homepage + /contact + /about and extract email, phone, mobile, decision maker */
+async function crawlSite(rawUrl: string): Promise<{
+  email: string; phone: string; mobile: string; decision_maker: string;
+}> {
+  const base = normaliseUrl(rawUrl);
+  if (!base) return { email: "", phone: "", mobile: "", decision_maker: "" };
+
+  const paths = ["", "/contact", "/contact-us", "/about", "/about-us", "/team"];
+  const emails  = new Set<string>();
+  const phones  = new Set<string>();
+  const mobiles = new Set<string>();
+  let dm = "";
 
   for (const path of paths) {
     try {
@@ -72,29 +109,43 @@ async function crawlSite(rawUrl: string): Promise<{ email: string; phone: string
       if (!res.ok) continue;
       const html = await res.text();
 
-      // Extract emails
-      const found = html.match(EMAIL_RE) ?? [];
-      found.forEach((e) => { if (!isJunkEmail(e)) emails.add(e.toLowerCase()); });
-
-      // Extract phones from mailto: and text
-      const mailtoRe = /mailto:([^"'?]+)/g;
+      // Emails — prefer mailto: links (more reliable than raw text)
+      const mailtoRe = /mailto:([^"'?\s>]+)/g;
       let m: RegExpExecArray | null;
       while ((m = mailtoRe.exec(html)) !== null) {
-        const e = m[1].trim().toLowerCase();
+        const e = decodeURIComponent(m[1]).trim().toLowerCase();
         if (e.includes("@") && !isJunkEmail(e)) emails.add(e);
       }
+      // Fallback: raw email regex
+      if (emails.size === 0) {
+        (html.match(EMAIL_RE) ?? []).forEach((e) => {
+          if (!isJunkEmail(e)) emails.add(e.toLowerCase());
+        });
+      }
 
-      const phoneMatches = html.match(PHONE_RE) ?? [];
-      phoneMatches.forEach((p) => phones.add(p.replace(/\s/g, "")));
+      // Mobiles
+      (html.match(MOBILE_RE) ?? []).forEach((p) => mobiles.add(p.replace(/[\s\-]/g, "")));
 
-      // Stop early if we found something
-      if (emails.size > 0) break;
+      // Landlines (only if no mobile found yet)
+      if (mobiles.size === 0) {
+        (html.match(PHONE_RE) ?? []).forEach((p) => phones.add(p.replace(/[\s\-]/g, "")));
+      }
+
+      // Decision maker — best found on about/team pages
+      if (!dm && (path.includes("about") || path.includes("team") || path === "")) {
+        dm = extractDecisionMaker(html);
+      }
+
+      // Stop crawling pages once we have email + phone/mobile
+      if (emails.size > 0 && (mobiles.size > 0 || phones.size > 0)) break;
     } catch { /* unreachable or timeout — try next path */ }
   }
 
   return {
-    email: Array.from(emails)[0] ?? "",
-    phone: Array.from(phones)[0] ?? "",
+    email:          Array.from(emails)[0]  ?? "",
+    mobile:         Array.from(mobiles)[0] ?? "",
+    phone:          Array.from(phones)[0]  ?? "",
+    decision_maker: dm,
   };
 }
 
@@ -135,21 +186,24 @@ serve(async (req: Request) => {
 
   await withConcurrency(needsEnrich, async (lead) => {
     try {
-      const { email, phone } = await crawlSite(lead.website);
-      if (email && !lead.email) lead.enriched_email = email;
-      if (phone && !lead.phone) lead.enriched_phone = phone;
+      const { email, phone, mobile, decision_maker } = await crawlSite(lead.website);
+      if (email          && !lead.email)          lead.enriched_email  = email;
+      if (phone          && !lead.phone)          lead.enriched_phone  = phone;
+      if (mobile)                                 lead.enriched_mobile = mobile;
+      if (decision_maker && !lead.decision_maker) lead.decision_maker  = decision_maker;
     } catch { /* non-fatal */ }
   });
 
   // Merge enriched fields into base fields
   const finalLeads: LeadOut[] = enriched.map((l) => ({
     ...l,
-    email: l.email || l.enriched_email || "",
-    phone: l.phone || l.enriched_phone || "",
+    email:  l.email  || l.enriched_email  || "",
+    phone:  l.phone  || l.enriched_phone  || "",
+    mobile: l.enriched_mobile || "",
   }));
 
   const enrichedCount = finalLeads.filter(
-    (l) => l.enriched_email || l.enriched_phone,
+    (l) => l.enriched_email || l.enriched_phone || l.enriched_mobile || l.decision_maker,
   ).length;
 
   return json({ success: true, leads: finalLeads, enrichedCount });

@@ -5,12 +5,14 @@ export type ScrapedLead = {
   company: string;
   phone: string;
   email: string;
+  mobile: string;
   website: string;
   industry: string;
   source: string;
+  decision_maker?: string;
   enriched_email?: string;
   enriched_phone?: string;
-  decision_maker?: string;
+  enriched_mobile?: string;
   enriched_at?: string;
   ai_score?: number;
   ai_score_reason?: string;
@@ -122,6 +124,16 @@ export const CATEGORY_META: Record<ActorCategory, { label: string; colour: strin
 
 export const scoreColour = (s: number) =>
   s >= 8 ? "text-emerald-400" : s >= 5 ? "text-amber-400" : "text-red-400";
+
+/** Pick the best available email from a lead */
+export function bestEmail(l: ScrapedLead): string {
+  return l.email || l.enriched_email || "";
+}
+
+/** Pick the best available phone from a lead */
+export function bestPhone(l: ScrapedLead): string {
+  return l.mobile || l.enriched_mobile || l.phone || l.enriched_phone || "";
+}
 
 /** Build actor-specific Apify input from form state */
 export function buildActorInput(

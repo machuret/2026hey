@@ -330,9 +330,7 @@ export default function LeadsPage() {
           <ImportTab
             leads={leads} selected={selected}
             importing={importing} imported={imported} skipped={skipped} error={importError}
-            scoreThreshold={scoreThreshold}
             onToggleAll={toggleAll} onToggle={toggle}
-            onSelectAboveThreshold={selectAboveThreshold}
             onImport={importSelected}
           />
         )}

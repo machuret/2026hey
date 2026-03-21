@@ -159,7 +159,7 @@ export function QualifyTab({
         </div>
       )}
 
-      {leads.length > 0 && <LeadsTable rows={leads} selected={selected} onToggle={onToggle} showScore />}
+      {leads.length > 0 && <LeadsTable rows={leads} selected={selected} onToggle={onToggle} />}
     </div>
   );
 }
