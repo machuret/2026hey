@@ -115,8 +115,25 @@ export default function LeadsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setLeads(data.leads ?? []);
-        setSelected(new Set((data.leads ?? []).map((_: unknown, i: number) => i)));
+        const scraped = data.leads ?? [];
+        setLeads(scraped);
+        setSelected(new Set(scraped.map((_: unknown, i: number) => i)));
+        // Auto-save to CRM immediately
+        if (scraped.length > 0) {
+          setSaving(true); setSaveMsg("Auto-saving…");
+          try {
+            const saveRes  = await fetch("/api/engine/leads/import", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ leads: scraped }),
+              signal: AbortSignal.timeout(30000),
+            });
+            const saveData = await saveRes.json();
+            if (saveData.success) {
+              setSaveMsg(`✓ ${saveData.imported} saved to CRM${saveData.skipped ? ` (${saveData.skipped} duplicates skipped)` : ""}`);
+            }
+          } catch { /* non-fatal — leads still visible in UI */ }
+          finally { setSaving(false); }
+        }
         setTab("enrich");
       } else { setScrapeError(data.error ?? "Scrape failed"); }
     } catch (e: unknown) {
