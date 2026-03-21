@@ -16,6 +16,9 @@ alter table engine_objections enable row level security;
 create policy "service role full access on engine_objections"
   on engine_objections using (true) with check (true);
 
+create policy "anon read engine_objections"
+  on engine_objections for select using (true);
+
 create index if not exists engine_objections_sort_idx on engine_objections (sort_order asc);
 
 -- Pre-load the 15 standard cold-call objections
