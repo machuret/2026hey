@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Zap, Loader2, CheckSquare, Square, Download, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Zap, Loader2, CheckSquare, Square, Download, AlertCircle, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 
 type ScrapedLead = {
   name: string;
@@ -21,6 +21,13 @@ const ACTORS = [
   { id: "apify/yellow-pages-scraper",      label: "Yellow Pages Scraper" },
 ];
 
+type HealthStatus = "checking" | "ok" | "error";
+
+type ApiHealth = {
+  crm:   { status: HealthStatus; detail: string };
+  apify: { status: HealthStatus; detail: string };
+};
+
 export default function LeadsPage() {
   const [actor, setActor]         = useState(ACTORS[0].id);
   const [query, setQuery]         = useState("");
@@ -32,6 +39,47 @@ export default function LeadsPage() {
   const [error, setError]         = useState("");
   const [importing, setImporting] = useState(false);
   const [imported, setImported]   = useState(0);
+  const [health, setHealth]       = useState<ApiHealth>({
+    crm:   { status: "checking", detail: "" },
+    apify: { status: "checking", detail: "" },
+  });
+
+  const checkHealth = async () => {
+    setHealth({ crm: { status: "checking", detail: "" }, apify: { status: "checking", detail: "" } });
+
+    // Check CRM endpoint (quick DB round-trip)
+    try {
+      const res = await fetch("/api/engine/crm");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.leads)) {
+        setHealth((h) => ({ ...h, crm: { status: "ok", detail: `${data.leads.length} leads in DB` } }));
+      } else {
+        setHealth((h) => ({ ...h, crm: { status: "error", detail: data.error ?? `HTTP ${res.status}` } }));
+      }
+    } catch (e) {
+      setHealth((h) => ({ ...h, crm: { status: "error", detail: String(e) } }));
+    }
+
+    // Check Apify key is set via a lightweight ping to the scrape edge fn config
+    try {
+      const res = await fetch("/api/engine/leads/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor: "apify/google-maps-scraper", input: {}, maxItems: 0, _healthCheck: true }),
+      });
+      const data = await res.json();
+      if (res.status === 500 && data.error?.includes("APIFY_API_KEY not configured")) {
+        setHealth((h) => ({ ...h, apify: { status: "error", detail: "APIFY_API_KEY not set in Supabase secrets" } }));
+      } else {
+        // Any other response (including Apify errors) means the key reached the edge fn
+        setHealth((h) => ({ ...h, apify: { status: "ok", detail: "Key configured & edge fn reachable" } }));
+      }
+    } catch (e) {
+      setHealth((h) => ({ ...h, apify: { status: "error", detail: String(e) } }));
+    }
+  };
+
+  useEffect(() => { checkHealth(); }, []);
 
   const scrape = async () => {
     if (!query.trim()) { setError("Enter a search query"); return; }
@@ -118,6 +166,44 @@ export default function LeadsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* API Health Check */}
+        <div className="rounded-2xl bg-gray-900 border border-gray-800 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">API Status</h2>
+            <button
+              onClick={checkHealth}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" /> Recheck
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {([
+              { key: "crm" as const,   label: "Supabase CRM" },
+              { key: "apify" as const, label: "Apify Edge Fn" },
+            ]).map(({ key, label }) => {
+              const s = health[key];
+              return (
+                <div key={key} className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 border ${
+                  s.status === "ok"       ? "bg-emerald-900/20 border-emerald-800/50" :
+                  s.status === "error"    ? "bg-red-900/20 border-red-800/50" :
+                  "bg-gray-800/50 border-gray-700"
+                }`}>
+                  {s.status === "ok"      && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />}
+                  {s.status === "error"   && <XCircle      className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />}
+                  {s.status === "checking"&& <Loader2      className="h-4 w-4 text-gray-400 shrink-0 mt-0.5 animate-spin" />}
+                  <div>
+                    <p className={`text-xs font-semibold ${
+                      s.status === "ok" ? "text-emerald-300" : s.status === "error" ? "text-red-300" : "text-gray-400"
+                    }`}>{label}</p>
+                    {s.detail && <p className="text-[10px] text-gray-500 mt-0.5">{s.detail}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Config panel */}
         <div className="rounded-2xl bg-gray-900 border border-gray-800 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-white">Scrape Configuration</h2>
