@@ -71,7 +71,7 @@ export default function LeadsPage() {
       const res  = await fetch("/api/engine/leads/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actor: "apify/google-maps-scraper", input: {}, maxItems: 0, _healthCheck: true }),
+        body: JSON.stringify({ actor: "compass/crawler-google-places", input: {}, maxItems: 0, _healthCheck: true }),
         signal: AbortSignal.timeout(10000),
       });
       const data = await res.json();

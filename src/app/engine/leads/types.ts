@@ -41,7 +41,7 @@ export type PipelineTab = "scrape" | "enrich" | "qualify" | "import";
 
 export const ACTORS: ActorDef[] = [
   {
-    id: "apify/google-maps-scraper",
+    id: "compass/crawler-google-places",
     label: "Google Maps Scraper",
     category: "scrape",
     description: "Business name, phone, website, category, address from Google Maps.",
@@ -49,7 +49,7 @@ export const ACTORS: ActorDef[] = [
     inputFields: ["query", "location"],
   },
   {
-    id: "apify/yellow-pages-scraper",
+    id: "onidivo/yellow-pages-scraper",
     label: "Yellow Pages Scraper",
     category: "scrape",
     description: "Name, phone, address, category from Yellow Pages.",
@@ -65,7 +65,7 @@ export const ACTORS: ActorDef[] = [
     inputFields: ["jobTitle", "industry", "location"],
   },
   {
-    id: "apify/linkedin-company-scraper",
+    id: "bebity/linkedin-premium-actor",
     label: "LinkedIn Company Scraper",
     category: "scrape",
     description: "Company size, industry, HQ, description from LinkedIn.",
@@ -132,13 +132,13 @@ export function buildActorInput(
   },
 ): Record<string, unknown> {
   switch (actorId) {
-    case "apify/google-maps-scraper":
+    case "compass/crawler-google-places":
       return { searchStringsArray: [query], locationQuery: location || undefined, maxCrawledPlacesPerSearch: maxItems };
-    case "apify/yellow-pages-scraper":
+    case "onidivo/yellow-pages-scraper":
       return { search: query, location: location || undefined, maxItems };
     case "code_crafter/leads-finder":
       return { jobTitles: [jobTitle], industries: industry ? [industry] : undefined, locations: location ? [location] : undefined, maxLeads: maxItems };
-    case "apify/linkedin-company-scraper":
+    case "bebity/linkedin-premium-actor":
       return { searchQueries: [query], location: location || undefined, maxItems };
     case "dominic-quaiser/decision-maker-name-email-extractor":
     case "peterasorensen/snacci":
