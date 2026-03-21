@@ -2,15 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { BookOpen, Mic, MicOff, PhoneCall, PhoneOff, Loader2, RotateCcw, Volume2 } from "lucide-react";
-
-type Training = {
-  id: string;
-  name: string;
-  description: string | null;
-  prompt: string;
-  voice: string;
-  is_active: boolean;
-};
+import type { Training } from "@/types/engine";
 
 type Message = {
   role: "user" | "assistant";
@@ -29,6 +21,8 @@ export default function TrainingPage() {
   const [error, setError]           = useState("");
   const bottomRef                   = useRef<HTMLDivElement>(null);
   const recognitionRef              = useRef<{ stop: () => void } | null>(null);
+  // Stable ref so onresult always sees the latest messages without stale closure
+  const messagesRef                 = useRef<Message[]>([]);
 
   const fetchTrainings = useCallback(async () => {
     try {
@@ -47,6 +41,9 @@ export default function TrainingPage() {
     const audio = new Audio(`data:audio/mp3;base64,${base64}`);
     audio.play().catch(() => {});
   };
+
+  // Keep ref in sync every render
+  messagesRef.current = messages;
 
   const sendMessage = useCallback(async (text: string, history: Message[]) => {
     if (!selected || !text.trim()) return;
@@ -123,7 +120,8 @@ export default function TrainingPage() {
       if (e.results[e.results.length - 1].isFinal) {
         recognition.stop();
         setTranscript("");
-        sendMessage(t, messages);
+        // Use ref to get latest messages — avoids stale closure
+        sendMessage(t, messagesRef.current);
       }
     };
 

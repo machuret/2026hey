@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
+import { VALID_VOICES } from "@/types/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     if (!body.name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
     if (!body.prompt?.trim()) return NextResponse.json({ error: "prompt is required" }, { status: 400 });
+    const voice = body.voice ?? "alloy";
+    if (!VALID_VOICES.includes(voice)) return NextResponse.json({ error: `voice must be one of: ${VALID_VOICES.join(", ")}` }, { status: 400 });
 
     const { data, error } = await db.from("engine_trainings").insert({
       name:        body.name.trim(),
       description: body.description?.trim() ?? null,
       prompt:      body.prompt.trim(),
-      voice:       body.voice ?? "alloy",
+      voice,
       is_active:   body.is_active ?? true,
       sort_order:  body.sort_order ?? 0,
       updated_at:  new Date().toISOString(),

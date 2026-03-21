@@ -2,29 +2,21 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Loader2, BookOpen, Trash2, Pencil, Check, X, ChevronDown, ChevronUp } from "lucide-react";
+import type { Training } from "@/types/engine";
+import { VALID_VOICES } from "@/types/engine";
 
-type Training = {
-  id: string;
-  name: string;
-  description: string | null;
-  prompt: string;
-  voice: string;
-  is_active: boolean;
-  sort_order: number;
-  created_at: string;
-};
+const VOICES = VALID_VOICES;
 
-const VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
-
-const BLANK: Omit<Training, "id" | "created_at"> = {
+const BLANK: Omit<Training, "id" | "created_at" | "updated_at"> = {
   name: "", description: "", prompt: "", voice: "alloy", is_active: true, sort_order: 0,
 };
 
 export default function AdminTrainingPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [expanded, setExpanded]   = useState<string | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [createSaving, setCreateSaving] = useState(false);
+  const [editSaving, setEditSaving]     = useState(false);
+  const [expanded, setExpanded]         = useState<string | null>(null);
   const [showNew, setShowNew]     = useState(false);
   const [form, setForm]           = useState({ ...BLANK });
   const [editing, setEditing]     = useState<Record<string, Training>>({});
@@ -44,7 +36,7 @@ export default function AdminTrainingPage() {
 
   const createTraining = async () => {
     if (!form.name.trim() || !form.prompt.trim()) return;
-    setSaving(true);
+    setCreateSaving(true);
     try {
       const res = await fetch("/api/engine/trainings", {
         method: "POST",
@@ -58,14 +50,14 @@ export default function AdminTrainingPage() {
         setShowNew(false);
       }
     } finally {
-      setSaving(false);
+      setCreateSaving(false);
     }
   };
 
   const saveEdit = async (id: string) => {
     const t = editing[id];
     if (!t) return;
-    setSaving(true);
+    setEditSaving(true);
     try {
       const res = await fetch(`/api/engine/trainings/${id}`, {
         method: "PATCH",
@@ -78,7 +70,7 @@ export default function AdminTrainingPage() {
         setEditing((prev) => { const n = { ...prev }; delete n[id]; return n; });
       }
     } finally {
-      setSaving(false);
+      setEditSaving(false);
     }
   };
 
@@ -86,6 +78,7 @@ export default function AdminTrainingPage() {
     if (!confirm("Delete this training?")) return;
     await fetch(`/api/engine/trainings/${id}`, { method: "DELETE" });
     setTrainings((prev) => prev.filter((t) => t.id !== id));
+    setExpanded((prev) => prev === id ? null : prev);
   };
 
   const startEdit = (t: Training) => setEditing((prev) => ({ ...prev, [t.id]: { ...t } }));
@@ -160,10 +153,10 @@ export default function AdminTrainingPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={createTraining}
-                disabled={saving || !form.name.trim() || !form.prompt.trim()}
+                disabled={createSaving || !form.name.trim() || !form.prompt.trim()}
                 className="flex items-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors"
               >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                {createSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Create Training
               </button>
               <button
@@ -278,10 +271,10 @@ export default function AdminTrainingPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => saveEdit(t.id)}
-                          disabled={saving}
+                          disabled={editSaving}
                           className="flex items-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors"
                         >
-                          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          {editSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                           Save
                         </button>
                         <button

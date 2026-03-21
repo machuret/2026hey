@@ -46,9 +46,12 @@ export async function POST(req: NextRequest) {
     }
 
     const chatData = await chatRes.json();
-    const replyText: string = chatData.choices?.[0]?.message?.content ?? "";
+    const replyText: string = (chatData.choices?.[0]?.message?.content ?? "").trim();
+    if (!replyText) return NextResponse.json({ reply: "", audio: null });
 
     // 2. Convert text to speech via OpenAI TTS
+    const VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+    const safeVoice = VALID_VOICES.includes(voice) ? voice : "alloy";
     const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
@@ -58,13 +61,15 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: "tts-1",
         input: replyText,
-        voice,
+        voice: safeVoice,
         response_format: "mp3",
       }),
     });
 
     if (!ttsRes.ok) {
-      // Still return text even if TTS fails
+      const ttsErr = await ttsRes.text();
+      console.error(`[training/voice] TTS failed (${ttsRes.status}): ${ttsErr.slice(0, 200)}`);
+      // Still return text so the conversation continues even without audio
       return NextResponse.json({ reply: replyText, audio: null });
     }
 

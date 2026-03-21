@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Zap, Loader2, CheckSquare, Square, Download, AlertCircle, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 
 type ScrapedLead = {
@@ -44,7 +44,7 @@ export default function LeadsPage() {
     apify: { status: "checking", detail: "" },
   });
 
-  const checkHealth = async () => {
+  const checkHealth = useCallback(async () => {
     setHealth({ crm: { status: "checking", detail: "" }, apify: { status: "checking", detail: "" } });
 
     // Check CRM endpoint (quick DB round-trip)
@@ -77,9 +77,9 @@ export default function LeadsPage() {
     } catch (e) {
       setHealth((h) => ({ ...h, apify: { status: "error", detail: String(e) } }));
     }
-  };
+  }, []);
 
-  useEffect(() => { checkHealth(); }, []);
+  useEffect(() => { checkHealth(); }, [checkHealth]);
 
   const scrape = async () => {
     if (!query.trim()) { setError("Enter a search query"); return; }
