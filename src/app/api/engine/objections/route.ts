@@ -11,11 +11,10 @@ export async function GET() {
       .from("engine_objections")
       .select("*")
       .order("sort_order", { ascending: true });
-    if (error) throw error;
+    if (error) return NextResponse.json({ error: error.message, code: error.code, details: error.details, hint: error.hint }, { status: 500 });
     return NextResponse.json({ objections: data ?? [] });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg, detail: String(err) }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
