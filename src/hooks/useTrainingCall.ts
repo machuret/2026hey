@@ -19,7 +19,7 @@ type UseTrainingCallReturn = {
   coaching: boolean;
   report: CoachingReport | null;
   bottomRef: React.RefObject<HTMLDivElement>;
-  recognitionRef: React.RefObject<{ stop: () => void } | null>;
+  recognitionRef: React.RefObject<SpeechRecognition | null>;
   startCall: (scenario: Training) => Promise<void>;
   endCall: (scenarioName: string) => Promise<void>;
   startListening: (scenario: Training) => void;
@@ -43,7 +43,7 @@ export function useTrainingCall(): UseTrainingCallReturn {
   const [report, setReport]         = useState<CoachingReport | null>(null);
 
   const bottomRef      = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const messagesRef    = useRef<Message[]>([]);
 
   // Keep ref in sync with state — used inside SR callbacks to avoid stale closures
@@ -115,25 +115,15 @@ export function useTrainingCall(): UseTrainingCallReturn {
   }, [fetchCoaching]);
 
   const startListening = useCallback((scenario: Training) => {
-    type SR = {
-      lang: string; interimResults: boolean; continuous: boolean;
-      onstart: (() => void) | null;
-      onend: (() => void) | null;
-      onerror: (() => void) | null;
-      onresult: ((e: { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
-      start: () => void;
-      stop: () => void;
-    };
-    type SRCtor = new () => SR;
-    const w = window as unknown as { SpeechRecognition?: SRCtor; webkitSpeechRecognition?: SRCtor };
-    const SpeechRecognitionAPI = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    const SpeechRecognitionAPI =
+      (typeof window !== "undefined" && (window.SpeechRecognition ?? window.webkitSpeechRecognition)) || null;
 
     if (!SpeechRecognitionAPI) {
       setError("Speech recognition not supported in this browser. Try Chrome.");
       return;
     }
 
-    const recognition = new SpeechRecognitionAPI();
+    const recognition: SpeechRecognition = new SpeechRecognitionAPI();
     recognition.lang           = "en-AU";
     recognition.interimResults = true;
     recognition.continuous     = false;
@@ -142,7 +132,7 @@ export function useTrainingCall(): UseTrainingCallReturn {
     recognition.onstart  = () => { setListening(true); setTranscript(""); };
     recognition.onend    = () => setListening(false);
     recognition.onerror  = () => setListening(false);
-    recognition.onresult = (e) => {
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
       const t = Array.from(e.results).map((r) => r[0].transcript).join("");
       setTranscript(t);
       if (Array.from(e.results).at(-1)?.isFinal) {
