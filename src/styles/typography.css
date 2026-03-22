@@ -1,0 +1,55 @@
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-label::after {
+  content: '';
+  display: block;
+  height: 1px;
+  width: 40px;
+  background: var(--orange);
+}
+
+.section-headline {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(42px, 5vw, 72px);
+  line-height: 0.95;
+  letter-spacing: 0.5px;
+  color: var(--white);
+  margin-bottom: 24px;
+}
+
+.section-sub {
+  font-size: 17px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-weight: 300;
+  max-width: 640px;
+  margin-bottom: 48px;
+}
+
+/* CMS CONTENT FADE-IN — prevents flicker when CMS value loads */
+.cms-ready {
+  animation: fadeIn 0.35s ease both;
+}
+
+/* FAQ */
+.faq-answer {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-weight: 300;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.3s;
+}
+.faq-item-open .faq-answer { max-height: 200px; padding-top: 16px; }
+.faq-toggle { transition: transform 0.3s; }
+.faq-item-open .faq-toggle { transform: rotate(45deg); }
