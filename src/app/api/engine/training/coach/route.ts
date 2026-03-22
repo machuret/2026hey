@@ -38,21 +38,30 @@ export async function POST(req: NextRequest) {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     if (!OPENAI_API_KEY) return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
 
-    // Count words per role for talk ratio
+    // Count words per role for talk ratio.
+    // We compare user words vs AI words, but AI generates more polished/verbose text
+    // than a real prospect would speak. Apply a 0.6x deflation factor to AI word count
+    // so the ratio reflects realistic spoken time rather than raw token output.
     const userWords = validMessages
       .filter((m) => m.role === "user")
-      .reduce((acc, m) => acc + m.content.split(/\s+/).length, 0);
-    const aiWords = validMessages
+      .reduce((acc, m) => acc + m.content.split(/\s+/).filter(Boolean).length, 0);
+    const rawAiWords = validMessages
       .filter((m) => m.role === "assistant")
-      .reduce((acc, m) => acc + m.content.split(/\s+/).length, 0);
+      .reduce((acc, m) => acc + m.content.split(/\s+/).filter(Boolean).length, 0);
+    const aiWords = Math.round(rawAiWords * 0.6);
     const total = userWords + aiWords || 1;
     const talkRatio = {
       you: Math.round((userWords / total) * 100),
       prospect: Math.round((aiWords / total) * 100),
     };
 
-    // Count filler words in user messages
-    const FILLERS = ["um", "uh", "like", "basically", "literally", "right", "you know", "kind of", "sort of", "actually"];
+    // Count filler words in user messages.
+    // Multi-word fillers ("you know", "kind of") use indexOf — \b fails across spaces.
+    // Single-word fillers use \b word boundary for precision.
+    const FILLERS = [
+      "you know", "kind of", "sort of", "to be honest", "at the end of the day",
+      "um", "uh", "like", "basically", "literally", "right", "actually", "yeah look",
+    ];
     const userText = validMessages
       .filter((m) => m.role === "user")
       .map((m) => m.content.toLowerCase())
@@ -60,8 +69,14 @@ export async function POST(req: NextRequest) {
 
     const fillerWords = FILLERS
       .map((w) => {
-        const re = new RegExp(`\\b${w}\\b`, "gi");
-        const count = (userText.match(re) ?? []).length;
+        let count = 0;
+        if (w.includes(" ")) {
+          // Multi-word: count non-overlapping occurrences via indexOf
+          let pos = 0;
+          while ((pos = userText.indexOf(w, pos)) !== -1) { count++; pos += w.length; }
+        } else {
+          count = (userText.match(new RegExp(`\\b${w}\\b`, "g")) ?? []).length;
+        }
         return { word: w, count };
       })
       .filter((f) => f.count > 0)
@@ -69,10 +84,14 @@ export async function POST(req: NextRequest) {
 
     const fillerTotal = fillerWords.reduce((s, f) => s + f.count, 0);
 
-    // Build transcript for GPT analysis
-    const transcript = validMessages
+    // Build transcript for GPT analysis.
+    // Guard against very long calls — truncate to last 6000 chars to stay inside max_tokens.
+    const fullTranscript = validMessages
       .map((m) => `${m.role === "user" ? "SALESPERSON" : "PROSPECT"}: ${m.content}`)
       .join("\n");
+    const transcript = fullTranscript.length > 6000
+      ? "[earlier turns omitted]\n" + fullTranscript.slice(-6000)
+      : fullTranscript;
 
     const systemPrompt = `You are an expert cold calling coach analysing a roleplay session.
 The scenario is: "${safeScenarioName || "Cold call"}".
@@ -107,7 +126,7 @@ Be specific and actionable. Reference actual lines from the transcript.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: `TRANSCRIPT:\n${transcript}` },
         ],
-        max_tokens: 800,
+        max_tokens: 1000,
         temperature: 0.3,
         response_format: { type: "json_object" },
       }),

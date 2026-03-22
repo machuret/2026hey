@@ -149,8 +149,29 @@ export default function LeadsPage() {
         signal: AbortSignal.timeout(180000),
       });
       const data = await res.json();
-      if (data.success) { setLeads(data.leads ?? leads); setEnrichCount(data.enrichedCount ?? 0); setTab("contacts"); }
-      else { setEnrichError(data.error ?? "Enrichment failed"); }
+      if (data.success) {
+        // Merge enriched fields — never overwrite decision_maker or other fields
+        // added by downstream pipeline steps (contacts tab, apollo).
+        const enrichedMap = new Map<string, ScrapedLead>(
+          (data.leads ?? []).map((l: ScrapedLead) => [l.website || l.company + "\0" + l.name, l])
+        );
+        setLeads((prev) => prev.map((l) => {
+          const enriched = enrichedMap.get(l.website || l.company + "\0" + l.name);
+          if (!enriched) return l;
+          return {
+            ...l,
+            enriched_email:  enriched.enriched_email  || l.enriched_email,
+            enriched_phone:  enriched.enriched_phone  || l.enriched_phone,
+            enriched_mobile: enriched.enriched_mobile || l.enriched_mobile,
+            email:  enriched.email  || l.email,
+            phone:  enriched.phone  || l.phone,
+            mobile: enriched.mobile || l.mobile,
+            decision_maker: l.decision_maker || enriched.decision_maker,
+          };
+        }));
+        setEnrichCount(data.enrichedCount ?? 0);
+        setTab("contacts");
+      } else { setEnrichError(data.error ?? "Enrichment failed"); }
     } catch (e: unknown) {
       setEnrichError(e instanceof Error && e.name === "TimeoutError" ? "Enrichment timed out — try a smaller batch (≤20 leads)" : "Network error — enrichment failed");
     } finally { setEnriching(false); }

@@ -109,7 +109,7 @@ async function crawlSite(rawUrl: string): Promise<{
         headers: { "User-Agent": "Mozilla/5.0 (compatible; LeadEnricher/1.0)" },
         redirect: "follow",
       });
-      if (!res.ok) continue;
+      if (!res.ok) { console.warn(`[crawl] ${base}${path} → HTTP ${res.status}`); continue; }
       const html = await res.text();
 
       // Emails — prefer mailto: links (more reliable than raw text)
@@ -141,7 +141,7 @@ async function crawlSite(rawUrl: string): Promise<{
 
       // Stop crawling pages once we have email + phone/mobile
       if (emails.size > 0 && (mobiles.size > 0 || phones.size > 0)) break;
-    } catch { /* unreachable or timeout — try next path */ }
+    } catch (e) { console.warn(`[crawl] ${base}${path} failed:`, String(e)); }
   }
 
   return {
@@ -152,15 +152,33 @@ async function crawlSite(rawUrl: string): Promise<{
   };
 }
 
-const CONCURRENCY = 3;
+const CONCURRENCY = 5;
 
+/** True semaphore concurrency — next item starts as soon as any slot frees */
 async function withConcurrency<T>(
   items: T[],
   fn: (item: T) => Promise<void>,
 ): Promise<void> {
-  for (let i = 0; i < items.length; i += CONCURRENCY) {
-    await Promise.allSettled(items.slice(i, i + CONCURRENCY).map(fn));
-  }
+  let active = 0;
+  let idx = 0;
+  await new Promise<void>((resolve, reject) => {
+    function next() {
+      while (active < CONCURRENCY && idx < items.length) {
+        active++;
+        const item = items[idx++];
+        Promise.resolve()
+          .then(() => fn(item))
+          .catch(() => {}) // individual failures are non-fatal
+          .finally(() => {
+            active--;
+            if (active === 0 && idx >= items.length) resolve();
+            else next();
+          });
+      }
+      if (items.length === 0) resolve();
+    }
+    try { next(); } catch (e) { reject(e); }
+  });
 }
 
 /** Run an Apify actor synchronously and return dataset items */
@@ -184,10 +202,10 @@ async function runApifyActor(
         signal: AbortSignal.timeout((timeoutSecs + 10) * 1000),
       },
     );
-    if (!res.ok) return [];
+    if (!res.ok) { console.error(`[apify] ${slug} → HTTP ${res.status}`); return []; }
     const data = await res.json();
     return Array.isArray(data) ? data : [];
-  } catch { return []; }
+  } catch (e) { console.error(`[apify] ${slug} failed:`, String(e)); return []; }
 }
 
 /** Extract domain from a website URL */
@@ -289,7 +307,7 @@ serve(async (req: Request) => {
         if (result.email && !lead.email)   lead.enriched_email  = result.email;
         if (result.phone && !lead.phone)   lead.enriched_phone  = result.phone;
         if (result.mobile)                 lead.enriched_mobile = result.mobile;
-      } catch { /* non-fatal */ }
+      } catch (e) { console.error(`[apollo] ${lead.company} failed:`, String(e)); }
     });
   } else {
     // ── Crawl mode (default): scrape website HTML ─────────────────
@@ -302,7 +320,7 @@ serve(async (req: Request) => {
         if (phone          && !lead.phone)          lead.enriched_phone  = phone;
         if (mobile)                                 lead.enriched_mobile = mobile;
         if (decision_maker && !lead.decision_maker) lead.decision_maker  = decision_maker;
-      } catch { /* non-fatal */ }
+      } catch (e) { console.error(`[crawl] ${lead.website} failed:`, String(e)); }
     });
   }
 

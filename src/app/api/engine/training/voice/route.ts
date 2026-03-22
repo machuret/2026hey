@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    // 1. Get text reply from GPT-4o
+    // 1. Get text reply from GPT-4o-mini (15s timeout — fail fast if OpenAI is slow)
     const chatRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
         max_tokens: 300,
         temperature: 0.85,
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!chatRes.ok) {
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     // 2. Convert text to speech via OpenAI TTS
     const VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
     const safeVoice = VALID_VOICES.includes(voice) ? voice : "alloy";
+    // 2. Convert text to speech (20s timeout — TTS is slower than chat)
     const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
         voice: safeVoice,
         response_format: "mp3",
       }),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!ttsRes.ok) {
