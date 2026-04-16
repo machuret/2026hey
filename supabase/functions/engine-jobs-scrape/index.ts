@@ -249,6 +249,7 @@ serve(async (req: Request) => {
     // 2. Poll until finished (max 120s)
     const pollStart = Date.now();
     let status = "RUNNING";
+    let costUsd = 0;
     while (status === "RUNNING" || status === "READY") {
       if (Date.now() - pollStart > 120_000) return json({ error: "Apify run timed out (120s)" }, 504);
       await new Promise((r) => setTimeout(r, 3000));
@@ -258,6 +259,7 @@ serve(async (req: Request) => {
       );
       const { data: runData } = await statusRes.json();
       status = runData?.status ?? "FAILED";
+      if (runData?.usageTotalUsd) costUsd = Number(runData.usageTotalUsd);
     }
 
     if (status !== "SUCCEEDED") return json({ error: `Apify run ended with status: ${status}` }, 502);
@@ -275,7 +277,7 @@ serve(async (req: Request) => {
       .map((item: Record<string, unknown>) => normalize(item, country))
       .filter((j) => j.source_id && j.job_title);
 
-    return json({ success: true, count: jobs.length, jobs });
+    return json({ success: true, count: jobs.length, jobs, costUsd });
   } catch (err) {
     return json({ error: `Scrape failed: ${String(err)}` }, 500);
   }

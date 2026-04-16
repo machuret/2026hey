@@ -85,9 +85,12 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
     setForm((f: JobSearchForm) => ({ ...f, ...patch }));
   }, []);
 
+  const [saving, setSaving] = useState(false);
+  const [scrapeCost, setScrapeCost] = useState<number | null>(null);
+
   const scrape = useCallback(async () => {
     if (!form.searchTerm.trim()) { setScrapeError("Enter a search term"); return; }
-    setScraping(true); setScrapeError(""); setSaveMsg("");
+    setScraping(true); setScrapeError(""); setSaveMsg(""); setScrapeCost(null);
     try {
       const res = await fetch("/api/engine/jobs/scrape", {
         method: "POST",
@@ -101,28 +104,11 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
         return;
       }
 
+      if (data.costUsd != null) setScrapeCost(data.costUsd);
+
       const rawJobs = (data.jobs ?? []) as Record<string, unknown>[];
       if (rawJobs.length === 0) { setScrapeError("No jobs found — try different keywords"); return; }
       const jobs: JobLead[] = rawJobs.map(hydrateScrapedJob);
-
-      // Auto-save to DB
-      setSaveMsg("Saving to database…");
-      try {
-        const saveRes = await fetch("/api/engine/jobs/import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobs, searchQuery: form.searchTerm }),
-          signal: AbortSignal.timeout(30_000),
-        });
-        const saveData = await saveRes.json();
-        if (saveData.success) {
-          setSaveMsg(
-            `Saved ${saveData.imported} jobs${saveData.skipped ? ` (${saveData.skipped} duplicates skipped)` : ""}`,
-          );
-        }
-      } catch {
-          setSaveMsg("⚠ Save to database failed — jobs are in memory only");
-        }
 
       onDone(jobs);
     } catch (e: unknown) {
@@ -134,10 +120,33 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
     } finally { setScraping(false); }
   }, [form, onDone]);
 
+  const saveJobs = useCallback(async (jobs: JobLead[]) => {
+    if (!jobs.length) return;
+    setSaving(true); setSaveMsg("Saving to database…");
+    try {
+      const saveRes = await fetch("/api/engine/jobs/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobs, searchQuery: form.searchTerm }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      const saveData = await saveRes.json();
+      if (saveData.success) {
+        setSaveMsg(
+          `Saved ${saveData.imported} jobs${saveData.skipped ? ` (${saveData.skipped} duplicates skipped)` : ""}`,
+        );
+      } else {
+        setSaveMsg(`⚠ Save failed: ${saveData.error ?? "unknown error"}`);
+      }
+    } catch {
+      setSaveMsg("⚠ Save to database failed — jobs are in memory only");
+    } finally { setSaving(false); }
+  }, [form.searchTerm]);
+
   return {
     form, setSource, updateForm, selectedSource,
-    scraping, scrapeError, saveMsg,
-    scrape,
+    scraping, scrapeError, saveMsg, saving, scrapeCost,
+    scrape, saveJobs,
   };
 }
 
@@ -189,12 +198,14 @@ export function useJobEnrich(
   const [enrichMethod, setEnrichMethod] = useState<EnrichMethod | null>(null);
   const [enrichError, setEnrichError] = useState("");
   const [enrichCount, setEnrichCount] = useState(0);
+  const [enrichCost, setEnrichCost]   = useState<number | null>(null);
+  const [enrichSaveMsg, setEnrichSaveMsg] = useState("");
 
   const enrich = useCallback(async (method: EnrichMethod, selectedIds: Set<string>) => {
     const selected = jobs.filter((j) => selectedIds.has(j.id));
     if (!selected.length) { setEnrichError("Select jobs to enrich first"); return; }
 
-    setEnriching(true); setEnrichMethod(method); setEnrichError("");
+    setEnriching(true); setEnrichMethod(method); setEnrichError(""); setEnrichSaveMsg(""); setEnrichCost(null);
     try {
       const res = await fetch("/api/engine/jobs/enrich", {
         method: "POST",
@@ -210,6 +221,7 @@ export function useJobEnrich(
 
       const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
       setEnrichCount(data.enrichedCount ?? 0);
+      if (data.costUsd != null) setEnrichCost(data.costUsd);
 
       // Build lookup from current jobs BEFORE calling setJobs (avoids stale closure)
       const jobMap = new Map(jobs.map((j) => [j.id, j]));
@@ -247,7 +259,11 @@ export function useJobEnrich(
         ),
       );
       const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed) setEnrichError(`Enriched but ${failed} save(s) failed — refresh to check`);
+      if (failed) {
+        setEnrichError(`Enriched but ${failed} save(s) failed — refresh to check`);
+      } else {
+        setEnrichSaveMsg(`Auto-saved ${patches.length} enrichment(s) to database`);
+      }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "TimeoutError") {
         setEnrichError("Enrichment timed out (290s) — try a smaller batch");
@@ -257,7 +273,7 @@ export function useJobEnrich(
     } finally { setEnriching(false); setEnrichMethod(null); }
   }, [jobs, setJobs]);
 
-  return { enriching, enrichMethod, enrichError, enrichCount, enrich };
+  return { enriching, enrichMethod, enrichError, enrichCount, enrichCost, enrichSaveMsg, enrich };
 }
 
 // ── useJobPushToCrm ──────────────────────────────────────────────────────────

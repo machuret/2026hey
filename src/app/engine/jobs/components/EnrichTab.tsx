@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, UserSearch, Linkedin, Loader2, RefreshCw } from "lucide-react";
+import { Brain, UserSearch, Linkedin, Loader2, RefreshCw, DollarSign, CheckCircle } from "lucide-react";
 import type { JobLead, EnrichMethod } from "../types";
 import JobsTable from "./JobsTable";
 
@@ -13,6 +13,8 @@ type Props = {
   enrichMethod: EnrichMethod | null;
   enrichError: string;
   enrichCount: number;
+  enrichCost: number | null;
+  enrichSaveMsg: string;
   toggle: (id: string) => void;
   toggleAll: (jobs: JobLead[]) => void;
   onViewDetail: (job: JobLead) => void;
@@ -22,7 +24,7 @@ type Props = {
 
 export default function EnrichTab({
   jobs, selected, selectedCount, loading,
-  enriching, enrichMethod, enrichError, enrichCount,
+  enriching, enrichMethod, enrichError, enrichCount, enrichCost, enrichSaveMsg,
   toggle, toggleAll, onViewDetail, onRefresh, onEnrich,
 }: Props) {
   return (
@@ -76,9 +78,22 @@ export default function EnrichTab({
             {enrichCount} enriched
           </span>
         )}
+
+        {enrichCost != null && enrichCost > 0 && (
+          <span className="inline-flex items-center gap-1 text-xs text-yellow-400">
+            <DollarSign className="h-3 w-3" />
+            Cost: ${enrichCost.toFixed(4)}
+          </span>
+        )}
       </div>
 
       {enrichError && <p className="text-sm text-red-400">{enrichError}</p>}
+
+      {enrichSaveMsg && (
+        <p className="inline-flex items-center gap-1 text-xs text-emerald-400">
+          <CheckCircle className="h-3 w-3" /> {enrichSaveMsg}
+        </p>
+      )}
 
       <JobsTable
         jobs={jobs}

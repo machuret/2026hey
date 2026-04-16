@@ -24,6 +24,8 @@ function json(body: unknown, status = 200) {
 
 // ── Shared Apify runner ──────────────────────────────────────────────────────
 
+let totalCostUsd = 0;
+
 async function runApifyActor(
   actorId: string,
   input: Record<string, unknown>,
@@ -44,6 +46,9 @@ async function runApifyActor(
         signal: AbortSignal.timeout((timeoutSecs + 10) * 1000),
       },
     );
+    // Try to capture cost from X-Apify-* headers
+    const runCost = Number(res.headers.get("x-apify-usage-total-usd") ?? 0);
+    if (runCost > 0) totalCostUsd += runCost;
     if (!res.ok) { console.error(`[apify] ${slug} → HTTP ${res.status}`); return []; }
     const data = await res.json();
     return Array.isArray(data) ? data : [];
@@ -310,6 +315,7 @@ serve(async (req: Request) => {
   }
 
   try {
+    totalCostUsd = 0; // reset per request
     let enrichments: Record<string, Record<string, unknown>> = {};
 
     switch (method) {
@@ -328,7 +334,7 @@ serve(async (req: Request) => {
 
     const enrichedCount = Object.keys(enrichments).length;
 
-    return json({ success: true, method, enrichments, enrichedCount });
+    return json({ success: true, method, enrichments, enrichedCount, costUsd: totalCostUsd });
   } catch (err) {
     return json({ error: `Enrichment failed: ${String(err)}` }, 500);
   }

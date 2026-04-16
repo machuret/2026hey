@@ -32,10 +32,11 @@ export default function JobsPage() {
 
   const {
     form, setSource, updateForm, selectedSource,
-    scraping, scrapeError, saveMsg, scrape,
+    scraping, scrapeError, saveMsg, saving, scrapeCost,
+    scrape, saveJobs,
   } = useJobScrape(onScrapeDone);
 
-  const { enriching, enrichMethod, enrichError, enrichCount, enrich } = useJobEnrich(jobs, setJobs);
+  const { enriching, enrichMethod, enrichError, enrichCount, enrichCost, enrichSaveMsg, enrich } = useJobEnrich(jobs, setJobs);
   const { pushing, pushResult, pushToCrm, dismiss } = useJobPushToCrm(setJobs);
 
   useEffect(() => {
@@ -85,7 +86,9 @@ export default function JobsPage() {
           <ScrapeTab
             form={form} selectedSource={selectedSource}
             scraping={scraping} scrapeError={scrapeError} saveMsg={saveMsg}
+            saving={saving} scrapeCost={scrapeCost}
             setSource={setSource} updateForm={updateForm} onScrape={scrape}
+            onSave={() => saveJobs(jobs)}
             jobs={jobs} selected={selected}
             toggle={toggle} toggleAll={toggleAll} onViewDetail={setDetailJob}
           />
@@ -96,6 +99,7 @@ export default function JobsPage() {
             jobs={jobs} selected={selected} selectedCount={selectedCount}
             loading={loading} enriching={enriching} enrichMethod={enrichMethod}
             enrichError={enrichError} enrichCount={enrichCount}
+            enrichCost={enrichCost} enrichSaveMsg={enrichSaveMsg}
             toggle={toggle} toggleAll={toggleAll} onViewDetail={setDetailJob}
             onRefresh={fetchJobs} onEnrich={enrich}
           />
