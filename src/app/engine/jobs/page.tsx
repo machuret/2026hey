@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Rocket, Loader2 } from "lucide-react";
 import type { JobLead, JobPipelineTab } from "./types";
@@ -47,6 +47,14 @@ const PHASE_MESSAGES: Record<AutoPilotPhase, string> = {
 const VALID_TABS = new Set<JobPipelineTab>(["scrape", "pending", "enrich", "enriched", "review"]);
 
 export default function JobsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-gray-500" /></div>}>
+      <JobsPageInner />
+    </Suspense>
+  );
+}
+
+function JobsPageInner() {
   const { selected, setSelected, toggleAll, toggle } = useJobPipelineState();
 
   // URL-synced tab state
