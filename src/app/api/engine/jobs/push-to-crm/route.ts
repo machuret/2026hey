@@ -62,19 +62,19 @@ export async function POST(req: NextRequest) {
     let existingEmails = new Set<string>();
     let existingPhones = new Set<string>();
 
-    if (emails.length || phones.length) {
-      const orParts = [
-        emails.length ? `email.in.(${emails.map((e) => `"${e}"`).join(",")})` : null,
-        phones.length ? `phone.in.(${phones.map((p) => `"${p}"`).join(",")})` : null,
-      ].filter(Boolean).join(",");
-
-      const { data: existing } = await db
+    if (emails.length) {
+      const { data: byEmail } = await db
         .from("crm_leads")
-        .select("phone, email")
-        .or(orParts);
-
-      existingEmails = new Set((existing ?? []).map((r: Record<string, unknown>) => r.email as string).filter(Boolean));
-      existingPhones = new Set((existing ?? []).map((r: Record<string, unknown>) => r.phone as string).filter(Boolean));
+        .select("email")
+        .in("email", emails);
+      existingEmails = new Set((byEmail ?? []).map((r: { email: string }) => r.email).filter(Boolean));
+    }
+    if (phones.length) {
+      const { data: byPhone } = await db
+        .from("crm_leads")
+        .select("phone")
+        .in("phone", phones);
+      existingPhones = new Set((byPhone ?? []).map((r: { phone: string }) => r.phone).filter(Boolean));
     }
 
     const deduped = crmRows.filter((r: Record<string, unknown>) => {

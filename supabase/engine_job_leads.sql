@@ -53,8 +53,8 @@ create table if not exists job_leads (
   status            text default 'new'
                       check (status in ('new','ai_enriched','dm_enriched','fully_enriched','pushed_to_crm','dismissed')),
   search_query      text,
-  listed_at         text,
-  expires_at        text,
+  listed_at         timestamptz,
+  expires_at        timestamptz,
   created_at        timestamptz default now(),
   updated_at        timestamptz default now(),
   unique (source, source_id)

@@ -117,7 +117,9 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
             `Saved ${saveData.imported} jobs${saveData.skipped ? ` (${saveData.skipped} duplicates skipped)` : ""}`,
           );
         }
-      } catch { /* non-fatal */ }
+      } catch {
+          setSaveMsg("⚠ Save to database failed — jobs are in memory only");
+        }
 
       onDone(jobs);
     } catch (e: unknown) {
@@ -203,31 +205,43 @@ export function useJobEnrich(
       const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
       setEnrichCount(data.enrichedCount ?? 0);
 
-      // Merge enrichments into local state
-      setJobs((prev: JobLead[]) =>
-        prev.map((j: JobLead) => {
-          const e = enrichments[j.id];
-          if (!e) return j;
-          return { ...j, ...e } as JobLead;
-        }),
-      );
+      // Build lookup from current jobs BEFORE calling setJobs (avoids stale closure)
+      const jobMap = new Map(jobs.map((j) => [j.id, j]));
 
-      // Persist enrichments to DB
+      // Compute patches with correct status per job
+      const patches: { id: string; body: Record<string, unknown> }[] = [];
       for (const [id, fields] of Object.entries(enrichments)) {
-        // Compute new status
-        const job = jobs.find((j) => j.id === id);
+        const job = jobMap.get(id);
         const merged = { ...job, ...fields };
         let newStatus = job?.status ?? "new";
         if (method === "ai" && newStatus === "new") newStatus = "ai_enriched";
         if (method === "apollo" && (newStatus === "new" || newStatus === "ai_enriched")) newStatus = "dm_enriched";
         if (merged.ai_enriched_at && merged.dm_enriched_at && merged.li_enriched_at) newStatus = "fully_enriched";
-
-        fetch(`/api/engine/jobs/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...fields, status: newStatus }),
-        }).catch(() => {});
+        patches.push({ id, body: { ...fields, status: newStatus } });
       }
+
+      // Merge enrichments into local state
+      setJobs((prev: JobLead[]) =>
+        prev.map((j: JobLead) => {
+          const patch = patches.find((p) => p.id === j.id);
+          if (!patch) return j;
+          return { ...j, ...patch.body } as JobLead;
+        }),
+      );
+
+      // Persist enrichments to DB — await all and report failures
+      const results = await Promise.allSettled(
+        patches.map((p) =>
+          fetch(`/api/engine/jobs/${p.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(p.body),
+            signal: AbortSignal.timeout(10_000),
+          }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed) setEnrichError(`Enriched but ${failed} save(s) failed — refresh to check`);
     } catch (e: unknown) {
       setEnrichError(
         e instanceof Error && e.name === "TimeoutError"
@@ -275,18 +289,25 @@ export function useJobPushToCrm(
   }, [setJobs]);
 
   const dismiss = useCallback(async (selectedIds: Set<string>) => {
-    for (const id of selectedIds) {
-      fetch(`/api/engine/jobs/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "dismissed" }),
-      }).catch(() => {});
-    }
-    setJobs((prev: JobLead[]) =>
-      prev.map((j: JobLead) =>
-        selectedIds.has(j.id) ? { ...j, status: "dismissed" as const } : j,
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/engine/jobs/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "dismissed" }),
+          signal: AbortSignal.timeout(10_000),
+        }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); }),
       ),
     );
+    const succeeded = new Set(ids.filter((_, i) => results[i].status === "fulfilled"));
+    setJobs((prev: JobLead[]) =>
+      prev.map((j: JobLead) =>
+        succeeded.has(j.id) ? { ...j, status: "dismissed" as const } : j,
+      ),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed) setPushResult(`${failed} dismiss(es) failed — refresh to check`);
   }, [setJobs]);
 
   return { pushing, pushResult, pushToCrm, dismiss };
