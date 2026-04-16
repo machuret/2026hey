@@ -1,8 +1,19 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { Search, Loader2 } from "lucide-react";
 import type { JobSearchForm as FormType, JobSource, SourceDef } from "../types";
 import { JOB_SOURCES } from "../types";
+
+const PROGRESS_STAGES = [
+  { pct: 5,  label: "Starting Apify actor…" },
+  { pct: 15, label: "Actor running…" },
+  { pct: 30, label: "Scraping job boards…" },
+  { pct: 50, label: "Collecting results…" },
+  { pct: 70, label: "Processing listings…" },
+  { pct: 85, label: "Normalizing data…" },
+  { pct: 95, label: "Almost done…" },
+];
 
 type Props = {
   form: FormType;
@@ -19,6 +30,24 @@ export default function JobSearchForm({
   form, selectedSource, scraping, scrapeError, saveMsg,
   setSource, updateForm, onScrape,
 }: Props) {
+  const [stageIdx, setStageIdx] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (scraping) {
+      setStageIdx(0);
+      intervalRef.current = setInterval(() => {
+        setStageIdx((prev) => Math.min(prev + 1, PROGRESS_STAGES.length - 1));
+      }, 8000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [scraping]);
+
+  const stage = PROGRESS_STAGES[stageIdx];
+
   return (
     <div className="space-y-4">
       {/* Source selector */}
@@ -129,19 +158,36 @@ export default function JobSearchForm({
         )}
       </div>
 
-      {/* Scrape button */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onScrape}
-          disabled={scraping}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {scraping ? "Scraping…" : "Scrape Jobs"}
-        </button>
+      {/* Scrape button + progress bar */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onScrape}
+            disabled={scraping}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            {scraping ? "Scraping…" : "Scrape Jobs"}
+          </button>
 
-        {saveMsg && (
-          <span className="text-xs text-emerald-400">{saveMsg}</span>
+          {saveMsg && (
+            <span className="text-xs text-emerald-400">{saveMsg}</span>
+          )}
+        </div>
+
+        {scraping && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-400">{stage.label}</span>
+              <span className="text-gray-500">{stage.pct}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-gray-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all duration-1000 ease-out"
+                style={{ width: `${stage.pct}%` }}
+              />
+            </div>
+          </div>
         )}
       </div>
 
