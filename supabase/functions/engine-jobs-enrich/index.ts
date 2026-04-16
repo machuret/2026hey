@@ -8,6 +8,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const APIFY_API_KEY  = Deno.env.get("APIFY_API_KEY") ?? "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,12 +25,14 @@ function json(body: unknown, status = 200) {
 
 // ── Shared Apify runner ──────────────────────────────────────────────────────
 
-let totalCostUsd = 0;
+/** Mutable cost accumulator — created per request in the handler */
+type CostCtx = { totalCostUsd: number };
 
 async function runApifyActor(
   actorId: string,
   input: Record<string, unknown>,
   timeoutSecs = 60,
+  costCtx?: CostCtx,
 ): Promise<Record<string, unknown>[]> {
   if (!APIFY_API_KEY) return [];
   const slug = actorId.replaceAll("/", "~");
@@ -46,9 +49,11 @@ async function runApifyActor(
         signal: AbortSignal.timeout((timeoutSecs + 10) * 1000),
       },
     );
-    // Try to capture cost from X-Apify-* headers
-    const runCost = Number(res.headers.get("x-apify-usage-total-usd") ?? 0);
-    if (runCost > 0) totalCostUsd += runCost;
+    // Capture cost from X-Apify-* headers
+    if (costCtx) {
+      const runCost = Number(res.headers.get("x-apify-usage-total-usd") ?? 0);
+      if (runCost > 0) costCtx.totalCostUsd += runCost;
+    }
     if (!res.ok) { console.error(`[apify] ${slug} → HTTP ${res.status}`); return []; }
     const data = await res.json();
     return Array.isArray(data) ? data : [];
@@ -72,7 +77,7 @@ async function withConcurrency<T>(
         const item = items[idx++];
         Promise.resolve()
           .then(() => fn(item))
-          .catch(() => {})
+          .catch((e) => console.error("[concurrency] item failed:", String(e)))
           .finally(() => {
             active--;
             if (active === 0 && idx >= items.length) resolve();
@@ -137,6 +142,12 @@ async function enrichWithAI(jobs: JobIn[]): Promise<Record<string, Record<string
         }),
         signal: AbortSignal.timeout(45_000),
       });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        console.error(`[ai] OpenAI ${res.status} for ${job.company_name}: ${errBody.slice(0, 200)}`);
+        return;
+      }
 
       const data = await res.json();
       const raw = data.choices?.[0]?.message?.content ?? "";
@@ -280,7 +291,7 @@ const DM_TITLES = [
   "head of", "vp", "chief",
 ];
 
-async function apolloChain(job: JobIn): Promise<Record<string, unknown>> {
+async function apolloChain(job: JobIn, costCtx?: CostCtx): Promise<Record<string, unknown>> {
   const empty = { dm_name: "", dm_title: "", dm_email: "", dm_phone: "", dm_mobile: "", dm_linkedin_url: "" };
 
   const domain = job.company_website ? extractDomain(job.company_website) : "";
@@ -294,7 +305,7 @@ async function apolloChain(job: JobIn): Promise<Record<string, unknown>> {
   if (domain)           searchInput.organization_domains = [domain];
   if (job.company_name) searchInput.q_organization_name  = job.company_name;
 
-  const people = await runApifyActor("coladeu/apollo-people-leads-scraper", searchInput, 60);
+  const people = await runApifyActor("coladeu/apollo-people-leads-scraper", searchInput, 60, costCtx);
   if (!people.length) return empty;
 
   const person = people[0] as Record<string, unknown>;
@@ -312,6 +323,7 @@ async function apolloChain(job: JobIn): Promise<Record<string, unknown>> {
     "coladeu/apollo-person-phone-and-email-enrichment",
     { ids: [personId] },
     45,
+    costCtx,
   );
 
   if (!enriched.length) {
@@ -330,14 +342,14 @@ async function apolloChain(job: JobIn): Promise<Record<string, unknown>> {
   };
 }
 
-async function enrichWithApollo(jobs: JobIn[]): Promise<Record<string, Record<string, unknown>>> {
+async function enrichWithApollo(jobs: JobIn[], costCtx?: CostCtx): Promise<Record<string, Record<string, unknown>>> {
   if (!APIFY_API_KEY) throw new Error("APIFY_API_KEY not configured");
 
   const results: Record<string, Record<string, unknown>> = {};
 
   await withConcurrency(jobs, async (job) => {
     try {
-      const dm = await apolloChain(job);
+      const dm = await apolloChain(job, costCtx);
       results[job.id] = { ...dm, dm_enriched_at: new Date().toISOString() };
     } catch (e) {
       console.error(`[apollo] ${job.company_name} failed:`, String(e));
@@ -351,7 +363,7 @@ async function enrichWithApollo(jobs: JobIn[]): Promise<Record<string, Record<st
 // METHOD 3: LinkedIn Company Intel
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function enrichWithLinkedIn(jobs: JobIn[]): Promise<Record<string, Record<string, unknown>>> {
+async function enrichWithLinkedIn(jobs: JobIn[], costCtx?: CostCtx): Promise<Record<string, Record<string, unknown>>> {
   if (!APIFY_API_KEY) throw new Error("APIFY_API_KEY not configured");
 
   const results: Record<string, Record<string, unknown>> = {};
@@ -364,6 +376,7 @@ async function enrichWithLinkedIn(jobs: JobIn[]): Promise<Record<string, Record<
         "bebity/linkedin-premium-actor",
         { searchQueries: [job.company_name], maxItems: 1 },
         60,
+        costCtx,
       );
 
       if (!items.length) return;
@@ -391,6 +404,14 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  // Auth: verify Bearer token matches service role key
+  if (SERVICE_ROLE_KEY) {
+    const auth = req.headers.get("authorization") ?? "";
+    if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) {
+      return json({ error: "Unauthorized — invalid or missing Authorization header" }, 401);
+    }
+  }
+
   let body: { jobs: JobIn[]; method?: string };
   try {
     body = await req.json();
@@ -407,7 +428,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    totalCostUsd = 0; // reset per request
+    const costCtx: CostCtx = { totalCostUsd: 0 };
     let enrichments: Record<string, Record<string, unknown>> = {};
 
     switch (method) {
@@ -415,10 +436,10 @@ serve(async (req: Request) => {
         enrichments = await enrichWithAI(jobs);
         break;
       case "apollo":
-        enrichments = await enrichWithApollo(jobs);
+        enrichments = await enrichWithApollo(jobs, costCtx);
         break;
       case "linkedin":
-        enrichments = await enrichWithLinkedIn(jobs);
+        enrichments = await enrichWithLinkedIn(jobs, costCtx);
         break;
       default:
         return json({ error: `Unknown method: ${method}` }, 400);
@@ -426,7 +447,7 @@ serve(async (req: Request) => {
 
     const enrichedCount = Object.keys(enrichments).length;
 
-    return json({ success: true, method, enrichments, enrichedCount, costUsd: totalCostUsd });
+    return json({ success: true, method, enrichments, enrichedCount, costUsd: costCtx.totalCostUsd });
   } catch (err) {
     return json({ error: `Enrichment failed: ${String(err)}` }, 500);
   }

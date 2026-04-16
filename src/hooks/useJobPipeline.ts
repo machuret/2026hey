@@ -23,6 +23,7 @@ function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
     salary:              (raw.salary as string) || null,
     work_type:           (raw.work_type as string) || null,
     work_arrangement:    (raw.work_arrangement as string) || null,
+    job_category:        (raw.job_category as string) || null,
     description:         (raw.description as string) || null,
     emails:              Array.isArray(raw.emails) ? raw.emails : [],
     phone_numbers:       Array.isArray(raw.phone_numbers) ? raw.phone_numbers : [],
@@ -81,15 +82,19 @@ function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
 
 // ── useJobScrape ─────────────────────────────────────────────────────────────
 
-export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
+export function useJobScrape(
+  onDone: (jobs: JobLead[]) => void,
+  onClearJobs: () => void,
+) {
   const [form, setForm] = useState<JobSearchForm>({
     source: "seek",
     searchTerm: "",
-    location: "",
+    locations: [],
     country: "AU",
     maxResults: 50,
     dateRange: 7,
     workType: "",
+    industry: "",
   });
   const [scraping, setScraping]       = useState(false);
   const [scrapeError, setScrapeError] = useState("");
@@ -111,27 +116,57 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
 
   const scrape = useCallback(async () => {
     if (!form.searchTerm.trim()) { setScrapeError("Enter a search term"); return; }
+    const cities = form.locations.length > 0 ? form.locations : [""];
+
+    // Clear previous scrape results before starting a new search
+    onClearJobs();
     setScraping(true); setScrapeError(""); setSaveMsg(""); setScrapeCost(null);
+
+    let allJobs: JobLead[] = [];
+    let totalCost = 0;
+
     try {
-      const res = await fetch("/api/engine/jobs/scrape", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-        signal: AbortSignal.timeout(170_000),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setScrapeError(`[${res.status}] ${data.error ?? "Scrape failed — unknown error"}`);
-        return;
+      for (const city of cities) {
+        const payload = { ...form, location: city, locations: undefined };
+        const res = await fetch("/api/engine/jobs/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(170_000),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          setScrapeError(`[${res.status}] ${data.error ?? "Scrape failed — unknown error"}`);
+          continue;
+        }
+
+        if (data.costUsd != null) totalCost += data.costUsd;
+
+        const rawJobs = (data.jobs ?? []) as Record<string, unknown>[];
+        const hydrated: JobLead[] = rawJobs.map((raw) => ({
+          ...hydrateScrapedJob(raw),
+          job_category: form.industry || null,
+        }));
+        allJobs = [...allJobs, ...hydrated];
+
+        // Pause between cities to avoid hammering
+        if (cities.length > 1 && city !== cities[cities.length - 1]) {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
       }
 
-      if (data.costUsd != null) setScrapeCost(data.costUsd);
+      if (totalCost > 0) setScrapeCost(totalCost);
 
-      const rawJobs = (data.jobs ?? []) as Record<string, unknown>[];
-      if (rawJobs.length === 0) { setScrapeError("No jobs found — try different keywords"); return; }
-      const jobs: JobLead[] = rawJobs.map(hydrateScrapedJob);
+      // Dedup by source_id across cities
+      const seen = new Set<string>();
+      const unique = allJobs.filter((j) => {
+        if (seen.has(j.source_id)) return false;
+        seen.add(j.source_id);
+        return true;
+      });
 
-      onDone(jobs);
+      if (unique.length === 0) { setScrapeError("No jobs found — try different keywords or cities"); return; }
+      onDone(unique);
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "TimeoutError") {
         setScrapeError("Scrape timed out (170s) — try fewer results");
@@ -139,7 +174,7 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
         setScrapeError(`Scrape request failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     } finally { setScraping(false); }
-  }, [form, onDone]);
+  }, [form, onDone, onClearJobs]);
 
   const saveJobs = useCallback(async (jobs: JobLead[]) => {
     if (!jobs.length) return;
@@ -211,100 +246,259 @@ export function useJobList() {
 
 // ── useJobEnrich ─────────────────────────────────────────────────────────────
 
+/** Pipeline step descriptor */
+export type EnrichStep = {
+  method: EnrichMethod;
+  label: string;
+  done: boolean;
+  count: number;
+};
+
+const PIPELINE_STEPS: { method: EnrichMethod; label: string }[] = [
+  { method: "ai",       label: "AI Analysis" },
+  { method: "apollo",   label: "Decision Makers" },
+  { method: "linkedin", label: "LinkedIn Intel" },
+];
+
+const BATCH_SIZE = 50;
+
+/** Split an array into chunks of a given size */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export function useJobEnrich(
   jobs: JobLead[],
   setJobs: (updater: (prev: JobLead[]) => JobLead[]) => void,
 ) {
-  const [enriching, setEnriching]   = useState(false);
-  const [enrichMethod, setEnrichMethod] = useState<EnrichMethod | null>(null);
-  const [enrichError, setEnrichError] = useState("");
-  const [enrichCount, setEnrichCount] = useState(0);
-  const [enrichCost, setEnrichCost]   = useState<number | null>(null);
+  const [enriching, setEnriching]         = useState(false);
+  const [enrichMethod, setEnrichMethod]   = useState<EnrichMethod | null>(null);
+  const [enrichError, setEnrichError]     = useState("");
+  const [enrichCount, setEnrichCount]     = useState(0);
+  const [enrichCost, setEnrichCost]       = useState<number | null>(null);
   const [enrichSaveMsg, setEnrichSaveMsg] = useState("");
+  // Progress for full pipeline
+  const [pipelineSteps, setPipelineSteps] = useState<EnrichStep[]>([]);
+  const [pipelineProgress, setPipelineProgress] = useState(0); // 0-100
+  const [pipelineBatchMsg, setPipelineBatchMsg] = useState("");
 
+  /** Run a single enrichment method on a batch of jobs, returns patches */
+  const enrichBatch = useCallback(async (
+    batch: JobLead[],
+    method: EnrichMethod,
+  ): Promise<{ patches: { id: string; body: Record<string, unknown> }[]; cost: number; recruiterDismissed: number }> => {
+    const res = await fetch("/api/engine/jobs/enrich", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobs: batch, method }),
+      signal: AbortSignal.timeout(290_000),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(`[${res.status}] ${data.error ?? "Enrichment failed"}`);
+
+    const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
+    const jobMap = new Map(batch.map((j) => [j.id, j]));
+    const patches: { id: string; body: Record<string, unknown> }[] = [];
+    let recruiterDismissed = 0;
+
+    for (const [id, fields] of Object.entries(enrichments)) {
+      const job = jobMap.get(id);
+      const merged = { ...job, ...fields };
+      let newStatus = job?.status ?? "new";
+
+      if (method === "ai" && String(fields.ai_poster_type) === "agency_recruiter") {
+        newStatus = "recruiter_dismissed";
+        recruiterDismissed++;
+      } else if (method === "ai" && newStatus === "new") {
+        newStatus = "ai_enriched";
+      }
+      if (method === "apollo" && (newStatus === "new" || newStatus === "ai_enriched")) newStatus = "dm_enriched";
+      if (merged.ai_enriched_at && merged.dm_enriched_at && merged.li_enriched_at) newStatus = "fully_enriched";
+      patches.push({ id, body: { ...fields, status: newStatus } });
+    }
+
+    return { patches, cost: data.costUsd ?? 0, recruiterDismissed };
+  }, []);
+
+  /** Persist a single patch to DB with retry (up to 3 attempts, exponential backoff) */
+  const patchWithRetry = useCallback(async (
+    id: string,
+    body: Record<string, unknown>,
+    maxRetries = 2,
+  ): Promise<void> => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const r = await fetch(`/api/engine/jobs/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (r.ok) return;
+        // Don't retry 4xx client errors (bad data won't fix itself)
+        if (r.status >= 400 && r.status < 500) throw new Error(`HTTP ${r.status}`);
+        throw new Error(`HTTP ${r.status}`);
+      } catch (e) {
+        if (attempt === maxRetries) throw e;
+        // Exponential backoff: 500ms, 1500ms
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
+  }, []);
+
+  /** Apply patches to local state + persist to DB with retry */
+  const applyPatches = useCallback(async (
+    patches: { id: string; body: Record<string, unknown> }[],
+  ) => {
+    if (!patches.length) return 0;
+    const patchMap = new Map(patches.map((p) => [p.id, p.body]));
+    setJobs((prev: JobLead[]) =>
+      prev.map((j: JobLead) => {
+        const body = patchMap.get(j.id);
+        return body ? ({ ...j, ...body } as JobLead) : j;
+      }),
+    );
+    const results = await Promise.allSettled(
+      patches.map((p) => patchWithRetry(p.id, p.body)),
+    );
+    return results.filter((r) => r.status === "rejected").length;
+  }, [setJobs, patchWithRetry]);
+
+  /** Run enrichment for a single method (old-style individual button) */
   const enrich = useCallback(async (method: EnrichMethod, selectedIds: Set<string>) => {
     const selected = jobs.filter((j) => selectedIds.has(j.id));
     if (!selected.length) { setEnrichError("Select jobs to enrich first"); return; }
 
     setEnriching(true); setEnrichMethod(method); setEnrichError(""); setEnrichSaveMsg(""); setEnrichCost(null);
+    setPipelineSteps([]); setPipelineProgress(0); setPipelineBatchMsg("");
     try {
-      const res = await fetch("/api/engine/jobs/enrich", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobs: selected, method }),
-        signal: AbortSignal.timeout(290_000),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setEnrichError(`[${res.status}] ${data.error ?? "Enrichment failed — unknown error"}`);
-        return;
+      const batches = chunk(selected, BATCH_SIZE);
+      let totalCost = 0;
+      let totalEnriched = 0;
+      let totalFailed = 0;
+      let totalRecruiterDismissed = 0;
+
+      for (let i = 0; i < batches.length; i++) {
+        setPipelineBatchMsg(`Batch ${i + 1}/${batches.length} · ${method.toUpperCase()}…`);
+        setPipelineProgress(Math.round(((i) / batches.length) * 100));
+
+        const { patches, cost, recruiterDismissed } = await enrichBatch(batches[i], method);
+        totalCost += cost;
+        totalEnriched += patches.length;
+        totalRecruiterDismissed += recruiterDismissed;
+        const failed = await applyPatches(patches);
+        totalFailed += failed;
+
+        // Small pause between batches to avoid hammering
+        if (i < batches.length - 1) await new Promise((r) => setTimeout(r, 1500));
       }
 
-      const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
-      setEnrichCount(data.enrichedCount ?? 0);
-      if (data.costUsd != null) setEnrichCost(data.costUsd);
+      setPipelineProgress(100);
+      setEnrichCount(totalEnriched);
+      if (totalCost > 0) setEnrichCost(totalCost);
 
-      // Build lookup from current jobs BEFORE calling setJobs (avoids stale closure)
-      const jobMap = new Map(jobs.map((j) => [j.id, j]));
-
-      // Compute patches with correct status per job
-      const patches: { id: string; body: Record<string, unknown> }[] = [];
-      let recruiterDismissed = 0;
-      for (const [id, fields] of Object.entries(enrichments)) {
-        const job = jobMap.get(id);
-        const merged = { ...job, ...fields };
-        let newStatus = job?.status ?? "new";
-
-        // Auto-dismiss agency recruiter posts
-        if (method === "ai" && String(fields.ai_poster_type) === "agency_recruiter") {
-          newStatus = "recruiter_dismissed";
-          recruiterDismissed++;
-        } else if (method === "ai" && newStatus === "new") {
-          newStatus = "ai_enriched";
-        }
-        if (method === "apollo" && (newStatus === "new" || newStatus === "ai_enriched")) newStatus = "dm_enriched";
-        if (merged.ai_enriched_at && merged.dm_enriched_at && merged.li_enriched_at) newStatus = "fully_enriched";
-        patches.push({ id, body: { ...fields, status: newStatus } });
-      }
-
-      // Merge enrichments into local state
-      setJobs((prev: JobLead[]) =>
-        prev.map((j: JobLead) => {
-          const patch = patches.find((p) => p.id === j.id);
-          if (!patch) return j;
-          return { ...j, ...patch.body } as JobLead;
-        }),
-      );
-
-      // Persist enrichments to DB — await all and report failures
-      const results = await Promise.allSettled(
-        patches.map((p) =>
-          fetch(`/api/engine/jobs/${p.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(p.body),
-            signal: AbortSignal.timeout(10_000),
-          }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); }),
-        ),
-      );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed) {
-        setEnrichError(`Enriched but ${failed} save(s) failed — refresh to check`);
+      if (totalFailed) {
+        setEnrichError(`Enriched but ${totalFailed} save(s) failed — refresh to check`);
       } else {
-        const parts = [`Auto-saved ${patches.length} enrichment(s) to database`];
-        if (recruiterDismissed > 0) parts.push(`${recruiterDismissed} agency recruiter post(s) auto-dismissed`);
+        const parts = [`Auto-saved ${totalEnriched} enrichment(s) to database`];
+        if (totalRecruiterDismissed > 0) parts.push(`${totalRecruiterDismissed} agency post(s) auto-dismissed`);
         setEnrichSaveMsg(parts.join(" · "));
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "TimeoutError") {
-        setEnrichError("Enrichment timed out (290s) — try a smaller batch");
+        setEnrichError("Enrichment timed out — try a smaller batch");
       } else {
-        setEnrichError(`Enrichment request failed: ${e instanceof Error ? e.message : String(e)}`);
+        setEnrichError(`Enrichment failed: ${e instanceof Error ? e.message : String(e)}`);
       }
-    } finally { setEnriching(false); setEnrichMethod(null); }
-  }, [jobs, setJobs]);
+    } finally { setEnriching(false); setEnrichMethod(null); setPipelineBatchMsg(""); }
+  }, [jobs, enrichBatch, applyPatches]);
 
-  return { enriching, enrichMethod, enrichError, enrichCount, enrichCost, enrichSaveMsg, enrich };
+  /** Run full pipeline: AI → Apollo → LinkedIn sequentially with auto-batching */
+  const enrichAll = useCallback(async (selectedIds: Set<string>) => {
+    // Filter only non-recruiter, non-dismissed jobs
+    const selected = jobs.filter((j) => selectedIds.has(j.id) && j.status !== "recruiter_dismissed" && j.status !== "dismissed");
+    if (!selected.length) { setEnrichError("No eligible jobs selected"); return; }
+
+    setEnriching(true); setEnrichError(""); setEnrichSaveMsg(""); setEnrichCost(null); setEnrichCount(0);
+    setPipelineBatchMsg("");
+
+    const steps: EnrichStep[] = PIPELINE_STEPS.map((s) => ({ ...s, done: false, count: 0 }));
+    setPipelineSteps([...steps]);
+    setPipelineProgress(0);
+
+    let totalCost = 0;
+    let totalEnriched = 0;
+    let totalFailed = 0;
+    let totalRecruiterDismissed = 0;
+    // Track IDs dismissed so we skip them in later steps
+    const dismissedIds = new Set<string>();
+
+    try {
+      for (let si = 0; si < steps.length; si++) {
+        const step = steps[si];
+        setEnrichMethod(step.method);
+
+        // For apollo/linkedin, skip already-dismissed jobs
+        const eligible = selected.filter((j) => !dismissedIds.has(j.id));
+        if (!eligible.length) { steps[si].done = true; setPipelineSteps([...steps]); continue; }
+
+        const batches = chunk(eligible, BATCH_SIZE);
+        const baseProgress = Math.round((si / steps.length) * 100);
+        const stepWeight = 100 / steps.length;
+
+        for (let bi = 0; bi < batches.length; bi++) {
+          const batchProgress = baseProgress + Math.round(((bi) / batches.length) * stepWeight);
+          setPipelineProgress(batchProgress);
+          setPipelineBatchMsg(`${step.label} · Batch ${bi + 1}/${batches.length}`);
+
+          const { patches, cost, recruiterDismissed } = await enrichBatch(batches[bi], step.method);
+          totalCost += cost;
+          totalEnriched += patches.length;
+          totalRecruiterDismissed += recruiterDismissed;
+          steps[si].count += patches.length;
+
+          // Track dismissed IDs so we skip in later pipeline steps
+          for (const p of patches) {
+            if (String(p.body.status) === "recruiter_dismissed") dismissedIds.add(p.id);
+          }
+
+          const failed = await applyPatches(patches);
+          totalFailed += failed;
+
+          if (bi < batches.length - 1) await new Promise((r) => setTimeout(r, 1500));
+        }
+
+        steps[si].done = true;
+        setPipelineSteps([...steps]);
+
+        // Pause between pipeline steps
+        if (si < steps.length - 1) await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      setPipelineProgress(100);
+      setEnrichCount(totalEnriched);
+      if (totalCost > 0) setEnrichCost(totalCost);
+
+      if (totalFailed) {
+        setEnrichError(`Pipeline complete but ${totalFailed} save(s) failed`);
+      } else {
+        const parts = [`Full pipeline complete — ${totalEnriched} enrichments saved`];
+        if (totalRecruiterDismissed > 0) parts.push(`${totalRecruiterDismissed} agency post(s) auto-dismissed`);
+        setEnrichSaveMsg(parts.join(" · "));
+      }
+    } catch (e: unknown) {
+      const step = steps.find((s) => !s.done);
+      setEnrichError(`Pipeline failed at ${step?.label ?? "unknown"}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setEnriching(false); setEnrichMethod(null); setPipelineBatchMsg(""); }
+  }, [jobs, enrichBatch, applyPatches]);
+
+  return {
+    enriching, enrichMethod, enrichError, enrichCount, enrichCost, enrichSaveMsg,
+    pipelineSteps, pipelineProgress, pipelineBatchMsg,
+    enrich, enrichAll,
+  };
 }
 
 // ── useJobPushToCrm ──────────────────────────────────────────────────────────

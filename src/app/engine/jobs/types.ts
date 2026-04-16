@@ -28,6 +28,7 @@ export type JobLead = {
   salary: string | null;
   work_type: string | null;
   work_arrangement: string | null;
+  job_category: string | null;
   description: string | null;
   // Contacts from listing
   emails: string[];
@@ -96,14 +97,23 @@ export type JobLead = {
 export type JobSearchForm = {
   source: JobSource;
   searchTerm: string;
-  location: string;
+  locations: string[];
   country: string;
   maxResults: number;
   dateRange: number;
   workType: string;
+  industry: string;
 };
 
-export type JobPipelineTab = "scrape" | "enrich" | "review";
+/** Saved search template stored in Supabase */
+export type SavedSearch = {
+  id: string;
+  name: string;
+  form: JobSearchForm;
+  created_at: string;
+};
+
+export type JobPipelineTab = "scrape" | "pending" | "enrich" | "enriched" | "review";
 
 // ── Source definitions ──────────────────────────────────────────────────────
 
@@ -161,4 +171,51 @@ export const STATUS_LABELS: Record<JobStatus, string> = {
   pushed_to_crm:        "In CRM",
   dismissed:            "Dismissed",
   recruiter_dismissed:  "Agency Post",
+};
+
+// ── Industry categories for scrape form ─────────────────────────────────────
+
+export const JOB_CATEGORIES = [
+  "Accounting & Finance",
+  "Administration & Office Support",
+  "Advertising, Arts & Media",
+  "Banking & Financial Services",
+  "Call Centre & Customer Service",
+  "CEO & General Management",
+  "Community Services & Development",
+  "Construction",
+  "Consulting & Strategy",
+  "Design & Architecture",
+  "Education & Training",
+  "Engineering",
+  "Farming, Animals & Conservation",
+  "Government & Defence",
+  "Healthcare & Medical",
+  "Hospitality & Tourism",
+  "Human Resources & Recruitment",
+  "Information & Communication Technology",
+  "Insurance & Superannuation",
+  "Legal",
+  "Manufacturing, Transport & Logistics",
+  "Marketing & Communications",
+  "Mining, Resources & Energy",
+  "Real Estate & Property",
+  "Retail & Consumer Products",
+  "Sales",
+  "Science & Technology",
+  "Self Employment",
+  "Sport & Recreation",
+  "Trades & Services",
+] as const;
+
+export type JobCategory = (typeof JOB_CATEGORIES)[number];
+
+// ── Popular cities for multi-city checkboxes ─────────────────────────────────
+
+export const POPULAR_CITIES: Record<string, string[]> = {
+  AU: ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Canberra", "Hobart"],
+  NZ: ["Auckland", "Wellington", "Christchurch", "Hamilton"],
+  US: ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "San Francisco", "Seattle", "Austin", "Miami", "Denver"],
+  GB: ["London", "Manchester", "Birmingham", "Leeds", "Glasgow", "Edinburgh"],
+  CA: ["Toronto", "Vancouver", "Montreal", "Calgary", "Ottawa"],
 };

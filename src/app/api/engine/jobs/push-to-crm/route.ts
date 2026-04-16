@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
+import { requireEngineAuth } from "@/lib/engineAuth";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/engine/jobs/push-to-crm — push selected job leads into crm_leads
 export async function POST(req: NextRequest) {
+  const authErr = requireEngineAuth(req);
+  if (authErr) return authErr;
+
   try {
     const db = getEngineAdmin();
     const { jobIds } = await req.json();

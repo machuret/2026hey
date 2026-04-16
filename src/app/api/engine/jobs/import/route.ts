@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
+import { requireEngineAuth } from "@/lib/engineAuth";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/engine/jobs/import — save scraped jobs to DB with dedup
 export async function POST(req: NextRequest) {
+  const authErr = requireEngineAuth(req);
+  if (authErr) return authErr;
+
   try {
     const db = getEngineAdmin();
     const { jobs, searchQuery } = await req.json();
@@ -54,6 +58,7 @@ export async function POST(req: NextRequest) {
       salary:            j.salary ? String(j.salary) : null,
       work_type:         j.work_type ? String(j.work_type) : null,
       work_arrangement:  j.work_arrangement ? String(j.work_arrangement) : null,
+      job_category:      j.job_category ? String(j.job_category) : null,
       description:       j.description ? String(j.description) : null,
       emails:            Array.isArray(j.emails) ? j.emails : [],
       phone_numbers:     Array.isArray(j.phone_numbers) ? j.phone_numbers : [],

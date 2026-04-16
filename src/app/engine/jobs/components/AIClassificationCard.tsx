@@ -180,31 +180,33 @@ export default function AIClassificationCard({ job }: Props) {
       )}
 
       {/* Cold Email Building Blocks */}
-      <div className="rounded-lg bg-indigo-950/30 border border-indigo-800/40 p-3 space-y-2">
-        <h4 className="text-xs font-medium text-indigo-300 flex items-center gap-1">
-          <Mail className="h-3 w-3" /> Cold Email Kit
-        </h4>
-        {job.ai_pitch_angle && (
-          <p className="text-xs text-gray-300"><span className="text-gray-500">Pitch:</span> {job.ai_pitch_angle}</p>
-        )}
-        {job.ai_email_snippet && (
-          <div className="relative">
-            <p className="text-xs text-gray-200 bg-gray-900/60 rounded p-2 pr-8 leading-relaxed">
-              {job.ai_email_snippet}
-            </p>
-            <button
-              onClick={copySnippet}
-              className="absolute top-1.5 right-1.5 p-1 rounded text-gray-500 hover:text-white transition-colors"
-              title="Copy email snippet"
-            >
-              {copied ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-        )}
-        {job.ai_objection_preempt && (
-          <p className="text-xs text-gray-400"><span className="text-gray-500">Objection:</span> {job.ai_objection_preempt}</p>
-        )}
-      </div>
+      {(job.ai_pitch_angle || job.ai_email_snippet || job.ai_objection_preempt) && (
+        <div className="rounded-lg bg-indigo-950/30 border border-indigo-800/40 p-3 space-y-2">
+          <h4 className="text-xs font-medium text-indigo-300 flex items-center gap-1">
+            <Mail className="h-3 w-3" /> Cold Email Kit
+          </h4>
+          {job.ai_pitch_angle && (
+            <p className="text-xs text-gray-300"><span className="text-gray-500">Pitch:</span> {job.ai_pitch_angle}</p>
+          )}
+          {job.ai_email_snippet && (
+            <div className="relative">
+              <p className="text-xs text-gray-200 bg-gray-900/60 rounded p-2 pr-8 leading-relaxed">
+                {job.ai_email_snippet}
+              </p>
+              <button
+                onClick={copySnippet}
+                className="absolute top-1.5 right-1.5 p-1 rounded text-gray-500 hover:text-white transition-colors"
+                title="Copy email snippet"
+              >
+                {copied ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          )}
+          {job.ai_objection_preempt && (
+            <p className="text-xs text-gray-400"><span className="text-gray-500">Objection:</span> {job.ai_objection_preempt}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

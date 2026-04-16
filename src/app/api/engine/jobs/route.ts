@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
+import { requireEngineAuth } from "@/lib/engineAuth";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/engine/jobs — list job_leads with optional filters
 export async function GET(req: NextRequest) {
+  const authErr = requireEngineAuth(req);
+  if (authErr) return authErr;
+
   try {
     const db = getEngineAdmin();
     const url = new URL(req.url);

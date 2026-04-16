@@ -19,6 +19,7 @@ create table if not exists job_leads (
   salary            text,
   work_type         text,
   work_arrangement  text,
+  job_category      text,
   description       text,
   -- Contacts extracted from listing
   emails            text[] default '{}',
@@ -95,4 +96,5 @@ create index if not exists job_leads_status_idx  on job_leads (status);
 create index if not exists job_leads_source_idx  on job_leads (source);
 create index if not exists job_leads_company_idx on job_leads (company_name);
 create index if not exists job_leads_country_idx on job_leads (country);
-create index if not exists job_leads_created_idx on job_leads (created_at desc);
+create index if not exists job_leads_created_idx  on job_leads (created_at desc);
+create index if not exists job_leads_category_idx on job_leads (job_category);
