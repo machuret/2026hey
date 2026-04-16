@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, User, Linkedin, Mail, CheckCircle } from "lucide-react";
+import { Star, User, Linkedin, Mail, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import type { JobLead } from "../types";
 
 type Props = { job: JobLead };
@@ -10,7 +10,18 @@ export default function EnrichmentBadge({ job }: Props) {
   const hasDM = !!job.dm_name;
   const hasEmail = !!job.dm_email;
   const hasLI = job.li_enriched_at != null;
+  const isAgency = job.ai_poster_type === "agency_recruiter";
   const isComplete = hasDM && hasEmail;
+
+  // Agency recruiter — show orange badge
+  if (isAgency) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-orange-900/30 text-orange-400 border border-orange-800/50">
+        <AlertTriangle className="h-3 w-3" />
+        Agency
+      </span>
+    );
+  }
 
   if (!hasAI && !hasDM && !hasLI) {
     return <span className="text-xs text-gray-600">Not enriched</span>;
@@ -39,6 +50,14 @@ export default function EnrichmentBadge({ job }: Props) {
         >
           <Star className="h-3 w-3" />
           {job.ai_relevance_score}/10
+        </span>
+      )}
+
+      {/* Urgency */}
+      {job.ai_urgency && (job.ai_urgency === "High" || job.ai_urgency === "Immediate") && (
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-red-900/30 text-red-300 border border-red-800/50">
+          <Clock className="h-3 w-3" />
+          {job.ai_urgency}
         </span>
       )}
 

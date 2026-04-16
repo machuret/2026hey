@@ -5,6 +5,7 @@ import { X, ExternalLink, MapPin, Briefcase, Calendar, DollarSign } from "lucide
 import type { JobLead } from "../types";
 import { STATUS_COLOURS, STATUS_LABELS } from "../types";
 import DmContactCard from "./DmContactCard";
+import AIClassificationCard from "./AIClassificationCard";
 
 type Props = {
   job: JobLead | null;
@@ -100,6 +101,9 @@ export default function JobDetailDrawer({ job, onClose }: Props) {
 
           {/* Enrichment data */}
           <DmContactCard job={job} />
+
+          {/* AI Classification */}
+          <AIClassificationCard job={job} />
 
           {/* Full description */}
           {job.description && (

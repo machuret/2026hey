@@ -91,15 +91,21 @@ type JobIn = {
   id: string;
   company_name: string | null;
   company_website: string | null;
+  company_industry: string | null;
+  company_size: string | null;
   description: string | null;
   job_title: string | null;
   location: string | null;
   country: string | null;
   salary: string | null;
+  work_type: string | null;
+  work_arrangement: string | null;
   emails: string[];
   phone_numbers: string[];
   recruiter_name: string | null;
   recruiter_agency: string | null;
+  recruiter_website: string | null;
+  listed_at: string | null;
   [key: string]: unknown;
 };
 
@@ -114,23 +120,7 @@ async function enrichWithAI(jobs: JobIn[]): Promise<Record<string, Record<string
 
   await withConcurrency(jobs, async (job) => {
     try {
-      const prompt = `You are a B2B sales intelligence analyst. Analyze this job listing to help us pitch our services to the hiring company.
-
-JOB TITLE: ${job.job_title}
-COMPANY: ${job.company_name || "Unknown"}
-LOCATION: ${job.location || "Unknown"}
-SALARY: ${job.salary || "Not specified"}
-DESCRIPTION:
-${(job.description || "").slice(0, 3000)}
-
-Respond in JSON only (no markdown) with these fields:
-{
-  "company_summary": "Brief 1-2 sentence summary of what the company does based on clues in the listing",
-  "hiring_signal": "Why they are likely hiring — growth, replacement, new department, project-based, etc.",
-  "relevance_score": <1-10 integer — how good a prospect is this company for B2B outreach>,
-  "relevance_reason": "1 sentence explaining the score",
-  "suggested_dm_title": "The job title of the decision maker we should target (e.g. CEO, Head of Marketing, CTO)"
-}`;
+      const prompt = buildAIPrompt(job);
 
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -141,34 +131,136 @@ Respond in JSON only (no markdown) with these fields:
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.3,
-          max_tokens: 500,
+          temperature: 0.2,
+          max_tokens: 1200,
           response_format: { type: "json_object" },
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(45_000),
       });
 
       const data = await res.json();
       const raw = data.choices?.[0]?.message?.content ?? "";
-
-      // Parse JSON from response (handle markdown code blocks)
       const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const parsed = JSON.parse(jsonStr);
+      const p = JSON.parse(jsonStr);
 
-      results[job.id] = {
-        ai_company_summary:    parsed.company_summary || "",
-        ai_hiring_signal:      parsed.hiring_signal || "",
-        ai_relevance_score:    Math.min(10, Math.max(1, Number(parsed.relevance_score) || 5)),
-        ai_relevance_reason:   parsed.relevance_reason || "",
-        ai_suggested_dm_title: parsed.suggested_dm_title || "",
-        ai_enriched_at:        new Date().toISOString(),
-      };
+      results[job.id] = mapAIResponse(p);
     } catch (e) {
       console.error(`[ai] ${job.company_name} failed:`, String(e));
     }
   });
 
   return results;
+}
+
+/** Build the deep classification prompt for a single job */
+function buildAIPrompt(job: JobIn): string {
+  const recruiterInfo = [
+    job.recruiter_name ? `RECRUITER NAME: ${job.recruiter_name}` : null,
+    job.recruiter_agency ? `RECRUITER AGENCY: ${job.recruiter_agency}` : null,
+    job.recruiter_website ? `RECRUITER WEBSITE: ${job.recruiter_website}` : null,
+  ].filter(Boolean).join("\n");
+
+  return `You are a recruitment intelligence analyst for a STAFFING AGENCY. We supply candidates to companies. Analyze this job listing so we can pitch our staffing services to the hiring company.
+
+═══ JOB LISTING DATA ═══
+JOB TITLE: ${job.job_title || "Unknown"}
+COMPANY: ${job.company_name || "Unknown"}
+INDUSTRY: ${job.company_industry || "Unknown"}
+COMPANY SIZE: ${job.company_size || "Unknown"}
+LOCATION: ${job.location || "Unknown"}
+COUNTRY: ${job.country || "Unknown"}
+SALARY: ${job.salary || "Not specified"}
+WORK TYPE: ${job.work_type || "Unknown"}
+WORK ARRANGEMENT: ${job.work_arrangement || "Unknown"}
+LISTED: ${job.listed_at || "Unknown"}
+${recruiterInfo ? recruiterInfo + "\n" : ""}
+DESCRIPTION:
+${(job.description || "").slice(0, 4000)}
+
+═══ INSTRUCTIONS ═══
+Respond with a single JSON object. Every field is required.
+
+{
+  "poster_type": "direct_employer" or "agency_recruiter" — Is this posted by the company itself or by a recruitment agency? Look for clues: recruiter name/agency fields, phrases like "on behalf of our client", generic company descriptions, recruitment firm branding.
+  "poster_reason": "1 sentence explaining why you classified it as direct_employer or agency_recruiter",
+
+  "company_summary": "1-2 sentence summary of what the hiring company does",
+  "hiring_signal": "Why they are hiring — growth, replacement, new team, project-based, seasonal, etc.",
+  "relevance_score": <1-10 integer — how good a prospect for a staffing agency. 10 = high volume hirer, direct employer, clear role. 1 = agency post or vague listing>,
+  "relevance_reason": "1 sentence explaining the score",
+  "suggested_dm_title": "Job title of the decision maker to target (e.g. HR Manager, CEO, Head of Operations)",
+
+  "role_seniority": "Junior / Mid / Senior / Lead / Executive",
+  "role_function": "The department or function: Marketing, Engineering, Sales, Operations, Finance, HR, Admin, Healthcare, Construction, etc.",
+  "required_skills": ["skill1", "skill2", "skill3"] — top 3-6 skills or technologies from the ad,
+  "required_experience": "Experience requirement, e.g. '3-5 years', '10+', 'entry level'",
+  "required_certifications": ["cert1", "cert2"] — any licenses, certifications, or qualifications mentioned. Empty array if none,
+  "employment_type": "Permanent / Contract / Temp / Temp-to-Perm / Casual",
+
+  "urgency": "Low / Medium / High / Immediate",
+  "urgency_clues": "Evidence for urgency level — ASAP mentions, short deadline, repost indicators, immediate start",
+  "team_size_clue": "Any hint about team size or department size. Empty string if none",
+  "reports_to": "Who this role reports to if mentioned. Empty string if not clear",
+  "company_pain_points": "What challenges or needs does the ad reveal? What problem are they solving by hiring?",
+  "work_model": "On-site / Hybrid / Remote / Flexible",
+  "industry_vertical": "Specific sub-industry, e.g. SaaS, Aged Care, Commercial Construction, Retail Banking",
+
+  "salary_normalized": "Parsed salary range, e.g. '$80k-$100k AUD', '$50/hr'. Use 'Not disclosed' if truly not mentioned",
+  "benefits_summary": "Key benefits in 1 sentence (e.g. 'Salary packaging, WFH Fridays, car allowance'). 'None mentioned' if empty",
+
+  "candidate_persona": "1-2 sentence description of the ideal candidate they want — who is this person?",
+  "pitch_angle": "1 sentence: how should our staffing agency position itself when reaching out? What value do we offer for THIS specific role?",
+  "email_snippet": "2-3 sentence cold email hook personalized to this job ad. Address the decision maker. Mention the specific role and why we can help fill it quickly. Professional but warm tone.",
+  "objection_preempt": "The most likely objection from the company and a 1-sentence rebuttal"
+}`;
+}
+
+/** Map parsed AI response to database column names */
+function mapAIResponse(p: Record<string, unknown>): Record<string, unknown> {
+  const toArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.map(String).filter(Boolean) : [];
+
+  return {
+    // Existing fields (keep column names)
+    ai_company_summary:     String(p.company_summary ?? ""),
+    ai_hiring_signal:       String(p.hiring_signal ?? ""),
+    ai_relevance_score:     Math.min(10, Math.max(1, Number(p.relevance_score) || 5)),
+    ai_relevance_reason:    String(p.relevance_reason ?? ""),
+    ai_suggested_dm_title:  String(p.suggested_dm_title ?? ""),
+
+    // Recruiter classification
+    ai_poster_type:         String(p.poster_type ?? "unknown"),
+    ai_poster_reason:       String(p.poster_reason ?? ""),
+
+    // Role classification
+    ai_role_seniority:      String(p.role_seniority ?? ""),
+    ai_role_function:       String(p.role_function ?? ""),
+    ai_required_skills:     toArr(p.required_skills),
+    ai_required_experience: String(p.required_experience ?? ""),
+    ai_required_certifications: toArr(p.required_certifications),
+    ai_employment_type:     String(p.employment_type ?? ""),
+
+    // Hiring intelligence
+    ai_urgency:             String(p.urgency ?? ""),
+    ai_urgency_clues:       String(p.urgency_clues ?? ""),
+    ai_team_size_clue:      String(p.team_size_clue ?? ""),
+    ai_reports_to:          String(p.reports_to ?? ""),
+    ai_company_pain_points: String(p.company_pain_points ?? ""),
+    ai_work_model:          String(p.work_model ?? ""),
+    ai_industry_vertical:   String(p.industry_vertical ?? ""),
+
+    // Compensation
+    ai_salary_normalized:   String(p.salary_normalized ?? ""),
+    ai_benefits_summary:    String(p.benefits_summary ?? ""),
+
+    // Cold email building blocks
+    ai_candidate_persona:   String(p.candidate_persona ?? ""),
+    ai_pitch_angle:         String(p.pitch_angle ?? ""),
+    ai_email_snippet:       String(p.email_snippet ?? ""),
+    ai_objection_preempt:   String(p.objection_preempt ?? ""),
+
+    ai_enriched_at:         new Date().toISOString(),
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

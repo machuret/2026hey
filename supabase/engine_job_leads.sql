@@ -34,6 +34,32 @@ create table if not exists job_leads (
   ai_relevance_reason    text,
   ai_suggested_dm_title  text,
   ai_enriched_at         timestamptz,
+  -- AI: recruiter classification
+  ai_poster_type         text,
+  ai_poster_reason       text,
+  -- AI: role classification
+  ai_role_seniority      text,
+  ai_role_function       text,
+  ai_required_skills     text[] default '{}',
+  ai_required_experience text,
+  ai_required_certifications text[] default '{}',
+  ai_employment_type     text,
+  -- AI: hiring intelligence
+  ai_urgency             text,
+  ai_urgency_clues       text,
+  ai_team_size_clue      text,
+  ai_reports_to          text,
+  ai_company_pain_points text,
+  ai_work_model          text,
+  ai_industry_vertical   text,
+  -- AI: compensation
+  ai_salary_normalized   text,
+  ai_benefits_summary    text,
+  -- AI: cold email building blocks
+  ai_candidate_persona   text,
+  ai_pitch_angle         text,
+  ai_email_snippet       text,
+  ai_objection_preempt   text,
   -- DM enrichment (Step 2: Apollo)
   dm_name             text,
   dm_title            text,
@@ -51,7 +77,7 @@ create table if not exists job_leads (
   li_enriched_at      timestamptz,
   -- Status & meta
   status            text default 'new'
-                      check (status in ('new','ai_enriched','dm_enriched','fully_enriched','pushed_to_crm','dismissed')),
+                      check (status in ('new','ai_enriched','dm_enriched','fully_enriched','pushed_to_crm','dismissed','recruiter_dismissed')),
   search_query      text,
   listed_at         timestamptz,
   expires_at        timestamptz,

@@ -36,6 +36,27 @@ function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
     ai_relevance_reason: null,
     ai_suggested_dm_title: null,
     ai_enriched_at:      null,
+    ai_poster_type:      null,
+    ai_poster_reason:    null,
+    ai_role_seniority:   null,
+    ai_role_function:    null,
+    ai_required_skills:  [],
+    ai_required_experience: null,
+    ai_required_certifications: [],
+    ai_employment_type:  null,
+    ai_urgency:          null,
+    ai_urgency_clues:    null,
+    ai_team_size_clue:   null,
+    ai_reports_to:       null,
+    ai_company_pain_points: null,
+    ai_work_model:       null,
+    ai_industry_vertical: null,
+    ai_salary_normalized: null,
+    ai_benefits_summary: null,
+    ai_candidate_persona: null,
+    ai_pitch_angle:      null,
+    ai_email_snippet:    null,
+    ai_objection_preempt: null,
     dm_name:             null,
     dm_title:            null,
     dm_email:            null,
@@ -228,11 +249,19 @@ export function useJobEnrich(
 
       // Compute patches with correct status per job
       const patches: { id: string; body: Record<string, unknown> }[] = [];
+      let recruiterDismissed = 0;
       for (const [id, fields] of Object.entries(enrichments)) {
         const job = jobMap.get(id);
         const merged = { ...job, ...fields };
         let newStatus = job?.status ?? "new";
-        if (method === "ai" && newStatus === "new") newStatus = "ai_enriched";
+
+        // Auto-dismiss agency recruiter posts
+        if (method === "ai" && String(fields.ai_poster_type) === "agency_recruiter") {
+          newStatus = "recruiter_dismissed";
+          recruiterDismissed++;
+        } else if (method === "ai" && newStatus === "new") {
+          newStatus = "ai_enriched";
+        }
         if (method === "apollo" && (newStatus === "new" || newStatus === "ai_enriched")) newStatus = "dm_enriched";
         if (merged.ai_enriched_at && merged.dm_enriched_at && merged.li_enriched_at) newStatus = "fully_enriched";
         patches.push({ id, body: { ...fields, status: newStatus } });
@@ -262,7 +291,9 @@ export function useJobEnrich(
       if (failed) {
         setEnrichError(`Enriched but ${failed} save(s) failed — refresh to check`);
       } else {
-        setEnrichSaveMsg(`Auto-saved ${patches.length} enrichment(s) to database`);
+        const parts = [`Auto-saved ${patches.length} enrichment(s) to database`];
+        if (recruiterDismissed > 0) parts.push(`${recruiterDismissed} agency recruiter post(s) auto-dismissed`);
+        setEnrichSaveMsg(parts.join(" · "));
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "TimeoutError") {
