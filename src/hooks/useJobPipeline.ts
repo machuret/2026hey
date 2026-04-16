@@ -241,13 +241,19 @@ export function useJobList() {
       if (filters?.source)  params.set("source", filters.source);
       if (filters?.country) params.set("country", filters.country);
       if (filters?.search)  params.set("search", filters.search);
-      params.set("limit", "200");
+      params.set("limit", "500");
 
-      const res = await fetch(`/api/engine/jobs?${params}`, { signal: AbortSignal.timeout(10_000) });
+      const res = await fetch(`/api/engine/jobs?${params}`, { signal: AbortSignal.timeout(15_000) });
       const data = await res.json();
       if (!res.ok) { setListError(data.error ?? "Failed to load jobs"); return; }
-      setJobs(data.jobs ?? []);
-      setCount(data.count ?? 0);
+      const fetchedJobs = data.jobs ?? [];
+      const totalCount = data.count ?? 0;
+      setJobs(fetchedJobs);
+      setCount(totalCount);
+      // Warn if there are more jobs than we fetched (pagination needed)
+      if (totalCount > fetchedJobs.length) {
+        setListError(`Showing ${fetchedJobs.length} of ${totalCount} jobs — use filters to narrow results`);
+      }
     } catch (e: unknown) {
       setListError(
         e instanceof Error && e.name === "TimeoutError"

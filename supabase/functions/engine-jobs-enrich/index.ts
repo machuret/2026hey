@@ -152,7 +152,14 @@ async function enrichWithAI(jobs: JobIn[]): Promise<Record<string, Record<string
       const data = await res.json();
       const raw = data.choices?.[0]?.message?.content ?? "";
       const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const p = JSON.parse(jsonStr);
+
+      let p: Record<string, unknown>;
+      try {
+        p = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        console.error(`[ai] ${job.company_name} — malformed JSON from GPT:`, jsonStr.slice(0, 200));
+        return; // skip this job, don't crash the batch
+      }
 
       results[job.id] = mapAIResponse(p);
     } catch (e) {
@@ -404,12 +411,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  // Auth: verify Bearer token matches service role key
-  if (SERVICE_ROLE_KEY) {
-    const auth = req.headers.get("authorization") ?? "";
-    if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) {
-      return json({ error: "Unauthorized — invalid or missing Authorization header" }, 401);
-    }
+  // Auth: verify Bearer token matches service role key (always required)
+  if (!SERVICE_ROLE_KEY) {
+    return json({ error: "Server misconfigured — SERVICE_ROLE_KEY not set" }, 500);
+  }
+  const auth = req.headers.get("authorization") ?? "";
+  if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) {
+    return json({ error: "Unauthorized — invalid or missing Authorization header" }, 401);
   }
 
   let body: { jobs: JobIn[]; method?: string };

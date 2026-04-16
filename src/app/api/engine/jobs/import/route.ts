@@ -17,18 +17,31 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(jobs) || jobs.length === 0) {
       return NextResponse.json({ error: "No jobs provided" }, { status: 400 });
     }
+    if (jobs.length > 1000) {
+      return NextResponse.json({ error: "Maximum 1000 jobs per import batch" }, { status: 400 });
+    }
 
-    // Dedup: check existing source+source_id pairs
-    const sourceIds = jobs.map((j: Record<string, unknown>) => String(j.source_id));
-    const source = String(jobs[0].source || "seek");
+    // Dedup: group by source, then check existing source+source_id pairs per source
+    const bySource = new Map<string, string[]>();
+    for (const j of jobs) {
+      const src = String(j.source || "seek");
+      if (!bySource.has(src)) bySource.set(src, []);
+      bySource.get(src)!.push(String(j.source_id));
+    }
 
-    const { data: existing } = await db
-      .from("job_leads")
-      .select("source_id")
-      .eq("source", source)
-      .in("source_id", sourceIds);
-
-    const existingIds = new Set((existing ?? []).map((r: { source_id: string }) => r.source_id));
+    const existingIds = new Set<string>();
+    for (const [source, sourceIds] of bySource) {
+      // Supabase .in() max is ~1000, batch if needed
+      for (let i = 0; i < sourceIds.length; i += 500) {
+        const batch = sourceIds.slice(i, i + 500);
+        const { data: existing } = await db
+          .from("job_leads")
+          .select("source_id")
+          .eq("source", source)
+          .in("source_id", batch);
+        for (const r of existing ?? []) existingIds.add(String((r as { source_id: string }).source_id));
+      }
+    }
 
     const deduped = jobs.filter(
       (j: Record<string, unknown>) => !existingIds.has(String(j.source_id)),

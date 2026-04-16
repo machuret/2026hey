@@ -4,6 +4,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const APIFY_API_KEY = Deno.env.get("APIFY_API_KEY") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -203,9 +204,24 @@ const NORMALIZERS: Record<Source, (item: Record<string, unknown>, country: strin
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  // Auth: verify Bearer token matches service role key (always required)
+  if (!SERVICE_ROLE_KEY) {
+    return json({ error: "Server misconfigured — SERVICE_ROLE_KEY not set" }, 500);
+  }
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (authHeader !== `Bearer ${SERVICE_ROLE_KEY}`) {
+    return json({ error: "Unauthorized — invalid or missing Authorization header" }, 401);
+  }
+
   if (!APIFY_API_KEY) return json({ error: "APIFY_API_KEY not configured" }, 500);
 
-  const body = await req.json();
+  let body: { source?: string; searchTerm?: string; location?: string; country?: string; maxResults?: number; dateRange?: number; workType?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
   const {
     source = "seek",
     searchTerm = "",

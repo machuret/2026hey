@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
 import { requireEngineAuth } from "@/lib/engineAuth";
+import { extractErrorMsg } from "@/app/engine/jobs/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, jobs: data ?? [], count });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }
 }

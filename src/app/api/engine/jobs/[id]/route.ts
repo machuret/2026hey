@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
 import { requireEngineAuth } from "@/lib/engineAuth";
+import { extractErrorMsg } from "@/app/engine/jobs/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,12 @@ export async function PATCH(
       if (ALLOWED_FIELDS.has(key)) patch[key] = value;
     }
 
+    // Validate status value if present
+    const VALID_STATUSES = new Set(["new", "ai_enriched", "dm_enriched", "fully_enriched", "pushed_to_crm", "dismissed", "recruiter_dismissed"]);
+    if (patch.status && !VALID_STATUSES.has(patch.status as string)) {
+      return NextResponse.json({ error: `Invalid status: ${patch.status}` }, { status: 400 });
+    }
+
     const { data, error } = await db
       .from("job_leads")
       .update(patch)
@@ -57,7 +64,7 @@ export async function PATCH(
     if (error) throw error;
     return NextResponse.json({ success: true, job: data });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }
 }
 
@@ -76,6 +83,6 @@ export async function DELETE(
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }
 }

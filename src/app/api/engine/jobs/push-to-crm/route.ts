@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
 import { requireEngineAuth } from "@/lib/engineAuth";
+import { extractErrorMsg } from "@/app/engine/jobs/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -17,15 +18,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "jobIds array is required" }, { status: 400 });
     }
 
-    // Fetch the job leads
+    // Fetch the job leads — only eligible statuses
+    const PUSHABLE_STATUSES = ["ai_enriched", "dm_enriched", "fully_enriched"];
     const { data: jobs, error: fetchErr } = await db
       .from("job_leads")
       .select("*")
-      .in("id", jobIds);
+      .in("id", jobIds)
+      .in("status", PUSHABLE_STATUSES);
 
     if (fetchErr) throw fetchErr;
     if (!jobs || jobs.length === 0) {
-      return NextResponse.json({ error: "No jobs found" }, { status: 404 });
+      return NextResponse.json({ error: "No eligible jobs found (must be enriched and not dismissed)" }, { status: 404 });
     }
 
     // Build CRM lead rows from job data
@@ -107,14 +110,26 @@ export async function POST(req: NextRequest) {
       imported = inserted?.length ?? 0;
     }
 
-    // Mark job leads as pushed
-    await db
-      .from("job_leads")
-      .update({ status: "pushed_to_crm", updated_at: new Date().toISOString() })
-      .in("id", jobIds);
+    // Only mark actually imported jobs as pushed (not skipped dupes)
+    const importedJobIds = jobs
+      .filter((j: Record<string, unknown>) => {
+        const email = j.dm_email || ((j.emails as string[] | null)?.length ? (j.emails as string[])[0] : null);
+        const phone = j.dm_phone || j.dm_mobile || j.recruiter_phone || ((j.phone_numbers as string[] | null)?.length ? (j.phone_numbers as string[])[0] : null);
+        const emailSkipped = email && existingEmails.has(email as string);
+        const phoneSkipped = phone && existingPhones.has(phone as string);
+        return !emailSkipped && !phoneSkipped;
+      })
+      .map((j: Record<string, unknown>) => j.id);
+
+    if (importedJobIds.length > 0) {
+      await db
+        .from("job_leads")
+        .update({ status: "pushed_to_crm", updated_at: new Date().toISOString() })
+        .in("id", importedJobIds);
+    }
 
     return NextResponse.json({ success: true, imported, skipped });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }
 }
