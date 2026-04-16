@@ -34,13 +34,20 @@ export async function proxyEdgeFn(
   body?: unknown,
   timeoutMs = 290_000,
 ): Promise<NextResponse> {
+  const url = new URL(edgeFnUrl(fnName));
+  Object.entries(searchParams).forEach(([k, v]) => url.searchParams.set(k, v));
+
+  // Always use service role key — edge functions verify against it server-side
+  const authKey = SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY!;
+
+  if (!SUPABASE_URL) {
+    return NextResponse.json(
+      { error: `[config] SUPABASE_URL is not set — edge function ${fnName} cannot be reached` },
+      { status: 500 },
+    );
+  }
+
   try {
-    const url = new URL(edgeFnUrl(fnName));
-    Object.entries(searchParams).forEach(([k, v]) => url.searchParams.set(k, v));
-
-    // Always use service role key — edge functions verify against it server-side
-    const authKey = SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY!;
-
     const res = await fetch(url.toString(), {
       method,
       headers: {
@@ -51,9 +58,23 @@ export async function proxyEdgeFn(
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(timeoutMs),
     });
-    const data = await res.json();
+
+    // Try to parse JSON; some errors (404, 502) return HTML
+    let data: unknown;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      data = { error: `[${fnName}] HTTP ${res.status}: ${text.slice(0, 300)}` };
+    }
+
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    const msg = err instanceof Error && err.name === "TimeoutError"
+      ? `[${fnName}] Edge function timed out after ${Math.round(timeoutMs / 1000)}s`
+      : `[${fnName}] Edge function unreachable: ${err instanceof Error ? err.message : String(err)}`;
+    console.error(msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

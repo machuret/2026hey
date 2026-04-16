@@ -96,7 +96,10 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
         signal: AbortSignal.timeout(170_000),
       });
       const data = await res.json();
-      if (!data.success) { setScrapeError(data.error ?? "Scrape failed"); return; }
+      if (!data.success) {
+        setScrapeError(`[${res.status}] ${data.error ?? "Scrape failed — unknown error"}`);
+        return;
+      }
 
       const rawJobs = (data.jobs ?? []) as Record<string, unknown>[];
       if (rawJobs.length === 0) { setScrapeError("No jobs found — try different keywords"); return; }
@@ -123,11 +126,11 @@ export function useJobScrape(onDone: (jobs: JobLead[]) => void) {
 
       onDone(jobs);
     } catch (e: unknown) {
-      setScrapeError(
-        e instanceof Error && e.name === "TimeoutError"
-          ? "Scrape timed out — try fewer results"
-          : "Network error — scrape failed",
-      );
+      if (e instanceof Error && e.name === "TimeoutError") {
+        setScrapeError("Scrape timed out (170s) — try fewer results");
+      } else {
+        setScrapeError(`Scrape request failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
     } finally { setScraping(false); }
   }, [form, onDone]);
 
@@ -200,7 +203,10 @@ export function useJobEnrich(
         signal: AbortSignal.timeout(290_000),
       });
       const data = await res.json();
-      if (!data.success) { setEnrichError(data.error ?? "Enrichment failed"); return; }
+      if (!data.success) {
+        setEnrichError(`[${res.status}] ${data.error ?? "Enrichment failed — unknown error"}`);
+        return;
+      }
 
       const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
       setEnrichCount(data.enrichedCount ?? 0);
@@ -243,11 +249,11 @@ export function useJobEnrich(
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed) setEnrichError(`Enriched but ${failed} save(s) failed — refresh to check`);
     } catch (e: unknown) {
-      setEnrichError(
-        e instanceof Error && e.name === "TimeoutError"
-          ? "Enrichment timed out — try a smaller batch"
-          : "Network error — enrichment failed",
-      );
+      if (e instanceof Error && e.name === "TimeoutError") {
+        setEnrichError("Enrichment timed out (290s) — try a smaller batch");
+      } else {
+        setEnrichError(`Enrichment request failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
     } finally { setEnriching(false); setEnrichMethod(null); }
   }, [jobs, setJobs]);
 
