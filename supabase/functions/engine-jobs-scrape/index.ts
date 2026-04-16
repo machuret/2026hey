@@ -46,7 +46,7 @@ function buildActorInput(
         location: params.location || undefined,
         maxResults: params.maxResults,
         dateRange: params.dateRange || undefined,
-        sortBy: "date",
+        sortBy: "ListedDate",
         ...(params.workType ? { workType: [params.workType] } : {}),
       };
     case "indeed":
