@@ -150,7 +150,20 @@ function TableRow({
               {job.recruiter_name && <div><span className="text-gray-500">Recruiter:</span> {job.recruiter_name}{job.recruiter_agency ? ` (${job.recruiter_agency})` : ""}</div>}
               {job.emails.length > 0 && <div><span className="text-gray-500">Emails:</span> {job.emails.join(", ")}</div>}
               {job.phone_numbers.length > 0 && <div><span className="text-gray-500">Phones:</span> {job.phone_numbers.join(", ")}</div>}
-              {job.dm_name && <div><span className="text-gray-500">Decision Maker:</span> {job.dm_name} {job.dm_email ? `— ${job.dm_email}` : ""}</div>}
+              {job.dm_name && (() => {
+                const parts = job.dm_name.trim().split(/\s+/);
+                const first = parts[0] ?? "";
+                const last = parts.slice(1).join(" ");
+                return (
+                  <div className="col-span-2 flex gap-4">
+                    <span><span className="text-gray-500">First:</span> {first}</span>
+                    {last && <span><span className="text-gray-500">Last:</span> {last}</span>}
+                    <span><span className="text-gray-500">Full:</span> {job.dm_name}</span>
+                    {job.dm_email && <span><span className="text-gray-500">Email:</span> {job.dm_email}</span>}
+                    {job.dm_title && <span><span className="text-gray-500">Title:</span> {job.dm_title}</span>}
+                  </div>
+                );
+              })()}
             </div>
             {job.description && (
               <div className="text-xs text-gray-400 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed">

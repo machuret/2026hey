@@ -46,12 +46,30 @@ export default function DmContactCard({ job }: Props) {
       {/* Decision Maker */}
       {hasDM && (
         <div className="rounded-lg border border-emerald-800/50 bg-emerald-950/20 p-4">
-          <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-300 mb-2">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-300 mb-3">
             <User className="h-4 w-4" /> Decision Maker
           </h4>
-          {job.dm_name && (
-            <p className="text-sm font-medium text-white">{job.dm_name}</p>
-          )}
+          {job.dm_name && (() => {
+            const parts = job.dm_name.trim().split(/\s+/);
+            const firstName = parts[0] ?? "";
+            const lastName = parts.slice(1).join(" ") ?? "";
+            return (
+              <div className="grid grid-cols-3 gap-3 mb-2">
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-0.5">First Name</span>
+                  <span className="text-sm font-medium text-white">{firstName}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-0.5">Last Name</span>
+                  <span className="text-sm font-medium text-white">{lastName || "—"}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-0.5">Full Name</span>
+                  <span className="text-sm font-medium text-white">{job.dm_name}</span>
+                </div>
+              </div>
+            );
+          })()}
           {job.dm_title && (
             <p className="text-xs text-gray-400 mb-2">{job.dm_title}</p>
           )}

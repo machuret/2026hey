@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import type {
-  JobLead, JobSource, JobPipelineTab, JobSearchForm, EnrichMethod,
+  JobLead, JobSource, JobSearchForm, EnrichMethod,
 } from "@/app/engine/jobs/types";
 import { JOB_SOURCES } from "@/app/engine/jobs/types";
 
@@ -616,7 +616,6 @@ export function useJobPushToCrm(
 // ── useJobPipelineState — shared state ───────────────────────────────────────
 
 export function useJobPipelineState() {
-  const [tab, setTab]         = useState<JobPipelineTab>("scrape");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const toggleAll = useCallback((jobs: JobLead[]) => {
@@ -633,5 +632,5 @@ export function useJobPipelineState() {
     });
   }, []);
 
-  return { tab, setTab, selected, setSelected, toggleAll, toggle };
+  return { selected, setSelected, toggleAll, toggle };
 }

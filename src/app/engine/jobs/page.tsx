@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Rocket, Loader2 } from "lucide-react";
 import type { JobLead, JobPipelineTab } from "./types";
 import {
@@ -43,8 +44,20 @@ const PHASE_MESSAGES: Record<AutoPilotPhase, string> = {
   error:         "AutoPilot failed",
 };
 
+const VALID_TABS = new Set<JobPipelineTab>(["scrape", "pending", "enrich", "enriched", "review"]);
+
 export default function JobsPage() {
-  const { tab, setTab, selected, setSelected, toggleAll, toggle } = useJobPipelineState();
+  const { selected, setSelected, toggleAll, toggle } = useJobPipelineState();
+
+  // URL-synced tab state
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const rawTab = searchParams.get("tab") as JobPipelineTab | null;
+  const tab: JobPipelineTab = rawTab && VALID_TABS.has(rawTab) ? rawTab : "scrape";
+
+  const setTab = useCallback((newTab: JobPipelineTab) => {
+    router.replace(`/engine/jobs?tab=${newTab}`, { scroll: false });
+  }, [router]);
   const { jobs, setJobs, loading, count, listError, fetchJobs } = useJobList();
   const [detailJob, setDetailJob] = useState<JobLead | null>(null);
 
