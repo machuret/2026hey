@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, PhoneCall, BookOpen, Network, Zap, Settings } from "lucide-react";
+import { Users, PhoneCall, BookOpen, Network, Zap, Briefcase, Settings } from "lucide-react";
 
 const NAV = [
   { href: "/engine/crm",        label: "CRM",           icon: Users },
   { href: "/engine/leads",      label: "Lead Scraper",  icon: Zap },
+  { href: "/engine/jobs",       label: "Jobs",          icon: Briefcase },
   { href: "/engine/call-flow",  label: "Call Flow",     icon: PhoneCall },
   { href: "/engine/training",   label: "Training",      icon: BookOpen },
 ];
