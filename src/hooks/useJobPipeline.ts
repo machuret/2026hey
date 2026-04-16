@@ -99,6 +99,7 @@ export function useJobScrape(
   const [scraping, setScraping]       = useState(false);
   const [scrapeError, setScrapeError] = useState("");
   const [saveMsg, setSaveMsg]         = useState("");
+  const [scrapeProgress, setScrapeProgress] = useState("");
 
   const selectedSource = JOB_SOURCES.find((s) => s.id === form.source) ?? JOB_SOURCES[0];
 
@@ -120,13 +121,20 @@ export function useJobScrape(
 
     // Clear previous scrape results before starting a new search
     onClearJobs();
-    setScraping(true); setScrapeError(""); setSaveMsg(""); setScrapeCost(null);
+    setScraping(true); setScrapeError(""); setSaveMsg(""); setScrapeCost(null); setScrapeProgress("");
 
     let allJobs: JobLead[] = [];
     let totalCost = 0;
 
     try {
-      for (const city of cities) {
+      for (let ci = 0; ci < cities.length; ci++) {
+        const city = cities[ci];
+        if (cities.length > 1) {
+          setScrapeProgress(`Scraping ${city || "all locations"} (${ci + 1}/${cities.length})…`);
+        } else {
+          setScrapeProgress("Scraping jobs…");
+        }
+
         const payload = { ...form, location: city, locations: undefined };
         const res = await fetch("/api/engine/jobs/scrape", {
           method: "POST",
@@ -149,8 +157,12 @@ export function useJobScrape(
         }));
         allJobs = [...allJobs, ...hydrated];
 
+        if (cities.length > 1) {
+          setScrapeProgress(`Scraping ${city || "all locations"} (${ci + 1}/${cities.length}) — ${allJobs.length} jobs so far`);
+        }
+
         // Pause between cities to avoid hammering
-        if (cities.length > 1 && city !== cities[cities.length - 1]) {
+        if (ci < cities.length - 1) {
           await new Promise((r) => setTimeout(r, 1000));
         }
       }
@@ -173,7 +185,7 @@ export function useJobScrape(
       } else {
         setScrapeError(`Scrape request failed: ${e instanceof Error ? e.message : String(e)}`);
       }
-    } finally { setScraping(false); }
+    } finally { setScraping(false); setScrapeProgress(""); }
   }, [form, onDone, onClearJobs]);
 
   const saveJobs = useCallback(async (jobs: JobLead[]) => {
@@ -192,16 +204,21 @@ export function useJobScrape(
           `Saved ${saveData.imported} jobs${saveData.skipped ? ` (${saveData.skipped} duplicates skipped)` : ""}`,
         );
       } else {
-        setSaveMsg(`⚠ Save failed: ${saveData.error ?? "unknown error"}`);
+        // Safely extract error message (Supabase errors can be objects)
+        const errMsg = typeof saveData.error === "string"
+          ? saveData.error
+          : saveData.error?.message ?? JSON.stringify(saveData.error) ?? "unknown error";
+        setSaveMsg(`⚠ Save failed: ${errMsg}`);
       }
-    } catch {
-      setSaveMsg("⚠ Save to database failed — jobs are in memory only");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown error";
+      setSaveMsg(`⚠ Save to database failed: ${msg}`);
     } finally { setSaving(false); }
   }, [form.searchTerm]);
 
   return {
     form, setSource, updateForm, selectedSource,
-    scraping, scrapeError, saveMsg, saving, scrapeCost,
+    scraping, scrapeError, scrapeProgress, saveMsg, saving, scrapeCost,
     scrape, saveJobs,
   };
 }
@@ -284,19 +301,55 @@ export function useJobEnrich(
   const [pipelineProgress, setPipelineProgress] = useState(0); // 0-100
   const [pipelineBatchMsg, setPipelineBatchMsg] = useState("");
 
+  /** Trim a JobLead to only the fields the edge function needs */
+  const trimForEnrich = (j: JobLead) => ({
+    id: j.id,
+    company_name: j.company_name,
+    company_website: j.company_website,
+    company_industry: j.company_industry,
+    company_size: j.company_size,
+    description: j.description ? j.description.slice(0, 5000) : null,
+    job_title: j.job_title,
+    location: j.location,
+    country: j.country,
+    salary: j.salary,
+    work_type: j.work_type,
+    work_arrangement: j.work_arrangement,
+    emails: j.emails ?? [],
+    phone_numbers: j.phone_numbers ?? [],
+    recruiter_name: j.recruiter_name,
+    recruiter_agency: j.recruiter_agency,
+    recruiter_website: j.recruiter_website,
+    listed_at: j.listed_at,
+  });
+
   /** Run a single enrichment method on a batch of jobs, returns patches */
   const enrichBatch = useCallback(async (
     batch: JobLead[],
     method: EnrichMethod,
   ): Promise<{ patches: { id: string; body: Record<string, unknown> }[]; cost: number; recruiterDismissed: number }> => {
+    const trimmed = batch.map(trimForEnrich);
     const res = await fetch("/api/engine/jobs/enrich", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobs: batch, method }),
+      body: JSON.stringify({ jobs: trimmed, method }),
       signal: AbortSignal.timeout(290_000),
     });
+
+    // Handle non-JSON responses (502, HTML error pages, etc.)
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`[${res.status}] Server error: ${text.slice(0, 200)}`);
+    }
+
     const data = await res.json();
-    if (!data.success) throw new Error(`[${res.status}] ${data.error ?? "Enrichment failed"}`);
+    if (!data.success) {
+      const errMsg = typeof data.error === "string"
+        ? data.error
+        : data.error?.message ?? JSON.stringify(data.error) ?? "Enrichment failed";
+      throw new Error(`[${res.status}] ${errMsg}`);
+    }
 
     const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
     const jobMap = new Map(batch.map((j) => [j.id, j]));

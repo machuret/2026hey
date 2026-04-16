@@ -51,9 +51,14 @@ export default function JobsPage() {
   // AutoPilot state machine
   const [apPhase, setApPhase] = useState<AutoPilotPhase>("idle");
   const [apError, setApError] = useState("");
-  const cancelledRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const isAutoPilotActive = apPhase !== "idle" && apPhase !== "done" && apPhase !== "error";
+
+  /** Check if AutoPilot has been cancelled */
+  const isAborted = useCallback(() => {
+    return abortRef.current?.signal?.aborted ?? false;
+  }, []);
 
   // Saved search templates
   const savedSearches = useJobSavedSearches();
@@ -69,7 +74,7 @@ export default function JobsPage() {
 
   const {
     form, setSource, updateForm, selectedSource,
-    scraping, scrapeError, saveMsg, saving, scrapeCost,
+    scraping, scrapeError, scrapeProgress, saveMsg, saving, scrapeCost,
     scrape, saveJobs,
   } = useJobScrape(onScrapeDone, onClearJobs);
 
@@ -91,49 +96,46 @@ export default function JobsPage() {
   // Phase: SCRAPING — kick off scrape
   useEffect(() => {
     if (apPhase !== "scraping" || scraping) return;
-    let cancelled = false;
-    cancelledRef.current = false;
+    if (isAborted()) { setApPhase("idle"); return; }
     setTab("scrape");
 
     scrape().then(() => {
-      if (!cancelled && !cancelledRef.current) setApPhase("saving");
+      if (!isAborted()) setApPhase("saving");
     }).catch((e) => {
-      if (!cancelled) { setApError(String(e)); setApPhase("error"); }
+      if (!isAborted()) { setApError(String(e)); setApPhase("error"); }
     });
-
-    return () => { cancelled = true; };
-  }, [apPhase, scraping, scrape, setTab]);
+  }, [apPhase, scraping, scrape, setTab, isAborted]);
 
   // Phase: SAVING — save jobs once scrape populates them
   useEffect(() => {
     if (apPhase !== "saving" || saving || scraping) return;
     if (jobs.length === 0) return; // wait for jobs to populate
-    if (cancelledRef.current) { setApPhase("idle"); return; }
+    if (isAborted()) { setApPhase("idle"); return; }
 
     saveJobs(jobs).then(() => {
-      if (!cancelledRef.current) setApPhase("loading_saved");
+      if (!isAborted()) setApPhase("loading_saved");
     }).catch((e) => {
-      setApError(String(e)); setApPhase("error");
+      if (!isAborted()) { setApError(String(e)); setApPhase("error"); }
     });
-  }, [apPhase, saving, scraping, jobs.length, jobs, saveJobs]);
+  }, [apPhase, saving, scraping, jobs.length, jobs, saveJobs, isAborted]);
 
   // Phase: LOADING_SAVED — fetch from DB, then start enrichment
   useEffect(() => {
     if (apPhase !== "loading_saved" || loading) return;
-    if (cancelledRef.current) { setApPhase("idle"); return; }
+    if (isAborted()) { setApPhase("idle"); return; }
 
     setTab("enrich");
     fetchJobs().then(() => {
-      if (!cancelledRef.current) setApPhase("enriching");
+      if (!isAborted()) setApPhase("enriching");
     }).catch((e) => {
-      setApError(String(e)); setApPhase("error");
+      if (!isAborted()) { setApError(String(e)); setApPhase("error"); }
     });
-  }, [apPhase, loading, setTab, fetchJobs]);
+  }, [apPhase, loading, setTab, fetchJobs, isAborted]);
 
   // Phase: ENRICHING — select eligible jobs and run full pipeline
   useEffect(() => {
     if (apPhase !== "enriching" || enriching) return;
-    if (cancelledRef.current) { setApPhase("idle"); return; }
+    if (isAborted()) { setApPhase("idle"); return; }
 
     const eligible = jobs.filter(
       (j) => j.status !== "recruiter_dismissed" && j.status !== "dismissed" && j.status !== "pushed_to_crm",
@@ -149,25 +151,34 @@ export default function JobsPage() {
     setSelected(allIds);
 
     enrichAll(allIds).then(() => {
-      if (!cancelledRef.current) {
+      if (!isAborted()) {
         setApPhase("done");
         setTab("enriched");
         fetchJobs();
       }
     }).catch((e) => {
-      setApError(String(e)); setApPhase("error");
+      if (!isAborted()) { setApError(String(e)); setApPhase("error"); }
     });
-  }, [apPhase, enriching, jobs, setSelected, enrichAll, setTab, fetchJobs]);
+  }, [apPhase, enriching, jobs, setSelected, enrichAll, setTab, fetchJobs, isAborted]);
 
   const startAutoPilot = useCallback(() => {
-    cancelledRef.current = false;
+    // Create new AbortController for this AutoPilot run
+    abortRef.current = new AbortController();
     setApError("");
     setApPhase("scraping");
   }, []);
 
   const cancelAutoPilot = useCallback(() => {
-    cancelledRef.current = true;
+    // Abort all in-flight operations
+    abortRef.current?.abort();
+    abortRef.current = null;
     setApPhase("idle");
+    setApError("");
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
   }, []);
 
   const autoPilotMsg = apError && apPhase === "error"
@@ -239,8 +250,8 @@ export default function JobsPage() {
         {tab === "scrape" && (
           <ScrapeTab
             form={form} selectedSource={selectedSource}
-            scraping={scraping} scrapeError={scrapeError} saveMsg={saveMsg}
-            saving={saving} scrapeCost={scrapeCost}
+            scraping={scraping} scrapeError={scrapeError} scrapeProgress={scrapeProgress}
+            saveMsg={saveMsg} saving={saving} scrapeCost={scrapeCost}
             setSource={setSource} updateForm={updateForm} onScrape={scrape}
             onSave={() => saveJobs(jobs)}
             jobs={jobs} selected={selected}

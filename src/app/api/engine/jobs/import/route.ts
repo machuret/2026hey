@@ -81,7 +81,12 @@ export async function POST(req: NextRequest) {
       imported: data?.length ?? 0,
       skipped,
     });
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message: unknown }).message)
+        : JSON.stringify(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -18,6 +18,7 @@ type Props = {
   selectedSource: SourceDef;
   scraping: boolean;
   scrapeError: string;
+  scrapeProgress: string;
   saveMsg: string;
   saving: boolean;
   scrapeCost: number | null;
@@ -34,7 +35,7 @@ type Props = {
 };
 
 export default function ScrapeTab({
-  form, selectedSource, scraping, scrapeError, saveMsg, saving, scrapeCost,
+  form, selectedSource, scraping, scrapeError, scrapeProgress, saveMsg, saving, scrapeCost,
   setSource, updateForm, onScrape, onSave,
   jobs, selected, toggle, toggleAll, onViewDetail,
   savedSearches,
@@ -52,6 +53,14 @@ export default function ScrapeTab({
         onScrape={onScrape}
         savedSearches={savedSearches}
       />
+
+      {/* Scrape progress indicator */}
+      {scraping && scrapeProgress && (
+        <div className="rounded-lg bg-gray-900/70 border border-gray-800 p-3 flex items-center gap-3">
+          <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+          <span className="text-sm text-gray-300">{scrapeProgress}</span>
+        </div>
+      )}
 
       <div className="border-t border-gray-800 pt-4">
         <div className="flex items-center justify-between mb-3">
