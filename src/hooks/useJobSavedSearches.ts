@@ -3,6 +3,9 @@
 import { useState, useCallback, useEffect } from "react";
 import type { SavedSearch, JobSearchForm } from "@/app/engine/jobs/types";
 
+/** Return type of useJobSavedSearches — importable for prop types */
+export type SavedSearchesHook = ReturnType<typeof useJobSavedSearches>;
+
 export function useJobSavedSearches() {
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [loading, setLoading]   = useState(false);

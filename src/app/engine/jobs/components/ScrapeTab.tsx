@@ -1,17 +1,10 @@
 "use client";
 
 import { Save, Loader2, DollarSign } from "lucide-react";
-import type { JobLead, JobSearchForm as FormType, JobSource, SourceDef, SavedSearch } from "../types";
+import type { JobLead, JobSearchForm as FormType, JobSource, SourceDef } from "../types";
+import type { SavedSearchesHook } from "@/hooks/useJobSavedSearches";
 import JobSearchForm from "./JobSearchForm";
 import JobsTable from "./JobsTable";
-
-type SavedSearchesHook = {
-  searches: SavedSearch[];
-  loading: boolean;
-  error: string;
-  saveSearch: (name: string, form: FormType) => Promise<SavedSearch | null>;
-  deleteSearch: (id: string) => Promise<void>;
-};
 
 type Props = {
   form: FormType;

@@ -4,14 +4,7 @@ import { useState } from "react";
 import { Search, Loader2, Bookmark, Trash2, Plus, X } from "lucide-react";
 import type { JobSearchForm as FormType, JobSource, SourceDef, SavedSearch } from "../types";
 import { JOB_SOURCES, JOB_CATEGORIES, POPULAR_CITIES } from "../types";
-
-type SavedSearchesHook = {
-  searches: SavedSearch[];
-  loading: boolean;
-  error: string;
-  saveSearch: (name: string, form: FormType) => Promise<SavedSearch | null>;
-  deleteSearch: (id: string) => Promise<void>;
-};
+import type { SavedSearchesHook } from "@/hooks/useJobSavedSearches";
 
 type Props = {
   form: FormType;

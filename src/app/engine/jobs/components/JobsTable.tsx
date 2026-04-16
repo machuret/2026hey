@@ -4,6 +4,7 @@ import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import type { JobLead } from "../types";
 import { STATUS_COLOURS, STATUS_LABELS } from "../types";
+import { splitDmName } from "../utils";
 import EnrichmentBadge from "./EnrichmentBadge";
 
 type Props = {
@@ -151,14 +152,12 @@ function TableRow({
               {job.emails.length > 0 && <div><span className="text-gray-500">Emails:</span> {job.emails.join(", ")}</div>}
               {job.phone_numbers.length > 0 && <div><span className="text-gray-500">Phones:</span> {job.phone_numbers.join(", ")}</div>}
               {job.dm_name && (() => {
-                const parts = job.dm_name.trim().split(/\s+/);
-                const first = parts[0] ?? "";
-                const last = parts.slice(1).join(" ");
+                const { firstName, lastName, fullName } = splitDmName(job.dm_name);
                 return (
                   <div className="col-span-2 flex gap-4">
-                    <span><span className="text-gray-500">First:</span> {first}</span>
-                    {last && <span><span className="text-gray-500">Last:</span> {last}</span>}
-                    <span><span className="text-gray-500">Full:</span> {job.dm_name}</span>
+                    <span><span className="text-gray-500">First:</span> {firstName}</span>
+                    {lastName && <span><span className="text-gray-500">Last:</span> {lastName}</span>}
+                    <span><span className="text-gray-500">Full:</span> {fullName}</span>
                     {job.dm_email && <span><span className="text-gray-500">Email:</span> {job.dm_email}</span>}
                     {job.dm_title && <span><span className="text-gray-500">Title:</span> {job.dm_title}</span>}
                   </div>

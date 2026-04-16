@@ -5,6 +5,7 @@ import type {
   JobLead, JobSource, JobSearchForm, EnrichMethod,
 } from "@/app/engine/jobs/types";
 import { JOB_SOURCES } from "@/app/engine/jobs/types";
+import { extractErrorMsg } from "@/app/engine/jobs/utils";
 
 /** Hydrate a raw scraped job (no id/status) into a full JobLead with temp client-side ID */
 function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
@@ -85,6 +86,8 @@ function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
 export function useJobScrape(
   onDone: (jobs: JobLead[]) => void,
   onClearJobs: () => void,
+  /** Optional signal for external cancellation (e.g. AutoPilot) */
+  externalSignal?: AbortSignal,
 ) {
   const [form, setForm] = useState<JobSearchForm>({
     source: "seek",
@@ -140,7 +143,7 @@ export function useJobScrape(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(170_000),
+          signal: externalSignal ?? AbortSignal.timeout(170_000),
         });
         const data = await res.json();
         if (!data.success) {
@@ -180,13 +183,14 @@ export function useJobScrape(
       if (unique.length === 0) { setScrapeError("No jobs found — try different keywords or cities"); return; }
       onDone(unique);
     } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") return; // cancelled externally
       if (e instanceof Error && e.name === "TimeoutError") {
         setScrapeError("Scrape timed out (170s) — try fewer results");
       } else {
-        setScrapeError(`Scrape request failed: ${e instanceof Error ? e.message : String(e)}`);
+        setScrapeError(`Scrape request failed: ${extractErrorMsg(e)}`);
       }
     } finally { setScraping(false); setScrapeProgress(""); }
-  }, [form, onDone, onClearJobs]);
+  }, [form, onDone, onClearJobs, externalSignal]);
 
   const saveJobs = useCallback(async (jobs: JobLead[]) => {
     if (!jobs.length) return;
@@ -204,15 +208,10 @@ export function useJobScrape(
           `Saved ${saveData.imported} jobs${saveData.skipped ? ` (${saveData.skipped} duplicates skipped)` : ""}`,
         );
       } else {
-        // Safely extract error message (Supabase errors can be objects)
-        const errMsg = typeof saveData.error === "string"
-          ? saveData.error
-          : saveData.error?.message ?? JSON.stringify(saveData.error) ?? "unknown error";
-        setSaveMsg(`⚠ Save failed: ${errMsg}`);
+        setSaveMsg(`⚠ Save failed: ${extractErrorMsg(saveData.error)}`);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown error";
-      setSaveMsg(`⚠ Save to database failed: ${msg}`);
+      setSaveMsg(`⚠ Save to database failed: ${extractErrorMsg(e)}`);
     } finally { setSaving(false); }
   }, [form.searchTerm]);
 
@@ -279,6 +278,30 @@ const PIPELINE_STEPS: { method: EnrichMethod; label: string }[] = [
 
 const BATCH_SIZE = 50;
 
+/** Trim a JobLead to only the fields the edge function needs — pure function, no state */
+function trimForEnrich(j: JobLead) {
+  return {
+    id: j.id,
+    company_name: j.company_name,
+    company_website: j.company_website,
+    company_industry: j.company_industry,
+    company_size: j.company_size,
+    description: j.description ? j.description.slice(0, 5000) : null,
+    job_title: j.job_title,
+    location: j.location,
+    country: j.country,
+    salary: j.salary,
+    work_type: j.work_type,
+    work_arrangement: j.work_arrangement,
+    emails: j.emails ?? [],
+    phone_numbers: j.phone_numbers ?? [],
+    recruiter_name: j.recruiter_name,
+    recruiter_agency: j.recruiter_agency,
+    recruiter_website: j.recruiter_website,
+    listed_at: j.listed_at,
+  };
+}
+
 /** Split an array into chunks of a given size */
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -300,28 +323,6 @@ export function useJobEnrich(
   const [pipelineSteps, setPipelineSteps] = useState<EnrichStep[]>([]);
   const [pipelineProgress, setPipelineProgress] = useState(0); // 0-100
   const [pipelineBatchMsg, setPipelineBatchMsg] = useState("");
-
-  /** Trim a JobLead to only the fields the edge function needs */
-  const trimForEnrich = (j: JobLead) => ({
-    id: j.id,
-    company_name: j.company_name,
-    company_website: j.company_website,
-    company_industry: j.company_industry,
-    company_size: j.company_size,
-    description: j.description ? j.description.slice(0, 5000) : null,
-    job_title: j.job_title,
-    location: j.location,
-    country: j.country,
-    salary: j.salary,
-    work_type: j.work_type,
-    work_arrangement: j.work_arrangement,
-    emails: j.emails ?? [],
-    phone_numbers: j.phone_numbers ?? [],
-    recruiter_name: j.recruiter_name,
-    recruiter_agency: j.recruiter_agency,
-    recruiter_website: j.recruiter_website,
-    listed_at: j.listed_at,
-  });
 
   /** Run a single enrichment method on a batch of jobs, returns patches */
   const enrichBatch = useCallback(async (
@@ -345,10 +346,7 @@ export function useJobEnrich(
 
     const data = await res.json();
     if (!data.success) {
-      const errMsg = typeof data.error === "string"
-        ? data.error
-        : data.error?.message ?? JSON.stringify(data.error) ?? "Enrichment failed";
-      throw new Error(`[${res.status}] ${errMsg}`);
+      throw new Error(`[${res.status}] ${extractErrorMsg(data.error)}`);
     }
 
     const enrichments = data.enrichments as Record<string, Record<string, unknown>>;
@@ -390,11 +388,13 @@ export function useJobEnrich(
           signal: AbortSignal.timeout(10_000),
         });
         if (r.ok) return;
+        const err = new Error(`HTTP ${r.status}`);
         // Don't retry 4xx client errors (bad data won't fix itself)
-        if (r.status >= 400 && r.status < 500) throw new Error(`HTTP ${r.status}`);
-        throw new Error(`HTTP ${r.status}`);
+        if (r.status >= 400 && r.status < 500) throw err;
+        // 5xx — retry if attempts remain
+        if (attempt === maxRetries) throw err;
       } catch (e) {
-        if (attempt === maxRetries) throw e;
+        if (attempt >= maxRetries) throw e;
         // Exponential backoff: 500ms, 1500ms
         await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
       }
@@ -463,7 +463,7 @@ export function useJobEnrich(
       if (e instanceof Error && e.name === "TimeoutError") {
         setEnrichError("Enrichment timed out — try a smaller batch");
       } else {
-        setEnrichError(`Enrichment failed: ${e instanceof Error ? e.message : String(e)}`);
+        setEnrichError(`Enrichment failed: ${extractErrorMsg(e)}`);
       }
     } finally { setEnriching(false); setEnrichMethod(null); setPipelineBatchMsg(""); }
   }, [jobs, enrichBatch, applyPatches]);
@@ -543,7 +543,7 @@ export function useJobEnrich(
       }
     } catch (e: unknown) {
       const step = steps.find((s) => !s.done);
-      setEnrichError(`Pipeline failed at ${step?.label ?? "unknown"}: ${e instanceof Error ? e.message : String(e)}`);
+      setEnrichError(`Pipeline failed at ${step?.label ?? "unknown"}: ${extractErrorMsg(e)}`);
     } finally { setEnriching(false); setEnrichMethod(null); setPipelineBatchMsg(""); }
   }, [jobs, enrichBatch, applyPatches]);
 

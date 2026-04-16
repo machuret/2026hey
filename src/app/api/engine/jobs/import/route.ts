@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngineAdmin } from "@/lib/engineSupabase";
 import { requireEngineAuth } from "@/lib/engineAuth";
+import { extractErrorMsg } from "@/app/engine/jobs/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -82,11 +83,6 @@ export async function POST(req: NextRequest) {
       skipped,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error
-      ? err.message
-      : typeof err === "object" && err !== null && "message" in err
-        ? String((err as { message: unknown }).message)
-        : JSON.stringify(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }
 }
