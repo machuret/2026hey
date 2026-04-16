@@ -3,13 +3,6 @@ import { getEngineAdmin } from "@/lib/engineSupabase";
 
 export const dynamic = "force-dynamic";
 
-/** Safely convert a date-like value to ISO string for timestamptz, or null */
-function toTimestamp(v: unknown): string | null {
-  if (!v || v === "N/A" || v === "") return null;
-  const d = new Date(String(v));
-  return isNaN(d.getTime()) ? null : d.toISOString();
-}
-
 // POST /api/engine/jobs/import — save scraped jobs to DB with dedup
 export async function POST(req: NextRequest) {
   try {
@@ -68,11 +61,10 @@ export async function POST(req: NextRequest) {
       recruiter_phone:   j.recruiter_phone ? String(j.recruiter_phone) : null,
       recruiter_agency:  j.recruiter_agency ? String(j.recruiter_agency) : null,
       recruiter_website: j.recruiter_website ? String(j.recruiter_website) : null,
-      listed_at:         toTimestamp(j.listed_at),
-      expires_at:        toTimestamp(j.expires_at),
+      listed_at:         j.listed_at ? String(j.listed_at) : null,
+      expires_at:        j.expires_at ? String(j.expires_at) : null,
       search_query:      searchQuery ? String(searchQuery) : null,
       status:            "new",
-      created_at:        new Date().toISOString(),
       updated_at:        new Date().toISOString(),
     }));
 
