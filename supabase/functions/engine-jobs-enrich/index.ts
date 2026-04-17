@@ -28,18 +28,33 @@ function json(body: unknown, status = 200) {
 /** Mutable cost accumulator — created per request in the handler */
 type CostCtx = { totalCostUsd: number };
 
+/** Thrown when Apify itself is unreachable (timeout / 5xx / network) — NOT
+ *  for "actor ran successfully but returned 0 items" (that's a legitimate
+ *  empty result and we return []). Callers should treat this as transient
+ *  and NOT increment attempt counters, so the job is retried next tick. */
+class ApifyInfraError extends Error {
+  constructor(msg: string, public actor: string, public statusCode?: number) {
+    super(msg);
+    this.name = "ApifyInfraError";
+  }
+}
+
 async function runApifyActor(
   actorId: string,
   input: Record<string, unknown>,
   timeoutSecs = 60,
   costCtx?: CostCtx,
 ): Promise<Record<string, unknown>[]> {
-  if (!APIFY_API_KEY) return [];
+  if (!APIFY_API_KEY) throw new ApifyInfraError("APIFY_API_KEY not configured", actorId);
   const slug = actorId.replaceAll("/", "~");
-  try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/${slug}/run-sync-get-dataset-items?timeout=${timeoutSecs}`,
-      {
+  const url = `https://api.apify.com/v2/acts/${slug}/run-sync-get-dataset-items?timeout=${timeoutSecs}`;
+
+  // Retry transient failures up to 2 times with exponential backoff
+  const MAX_ATTEMPTS = 3;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -47,17 +62,47 @@ async function runApifyActor(
         },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout((timeoutSecs + 10) * 1000),
-      },
-    );
-    // Capture cost from X-Apify-* headers
-    if (costCtx) {
-      const runCost = Number(res.headers.get("x-apify-usage-total-usd") ?? 0);
-      if (runCost > 0) costCtx.totalCostUsd += runCost;
+      });
+
+      // Capture cost regardless of success
+      if (costCtx) {
+        const runCost = Number(res.headers.get("x-apify-usage-total-usd") ?? 0);
+        if (runCost > 0) costCtx.totalCostUsd += runCost;
+      }
+
+      // 5xx → retry (transient infra)
+      if (res.status >= 500) {
+        lastErr = new ApifyInfraError(`HTTP ${res.status}`, slug, res.status);
+        console.warn(`[apify] ${slug} attempt ${attempt}/${MAX_ATTEMPTS} → HTTP ${res.status}, retrying…`);
+        if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+
+      // 4xx → permanent (bad request / auth) — don't retry, treat as empty
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.error(`[apify] ${slug} HTTP ${res.status}: ${body.slice(0, 200)}`);
+        return [];  // permanent error with this input — caller treats as "no results"
+      }
+
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      lastErr = e;
+      const isTimeout = e instanceof Error && e.name === "TimeoutError";
+      const isNetwork = e instanceof TypeError; // fetch network errors
+      if (!(isTimeout || isNetwork)) {
+        // Unknown error type — don't retry
+        break;
+      }
+      console.warn(`[apify] ${slug} attempt ${attempt}/${MAX_ATTEMPTS}: ${isTimeout ? "timeout" : "network"}, retrying…`);
+      if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 1000 * attempt));
     }
-    if (!res.ok) { console.error(`[apify] ${slug} → HTTP ${res.status}`); return []; }
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (e) { console.error(`[apify] ${slug} failed:`, String(e)); return []; }
+  }
+
+  // All retries exhausted → throw so caller knows it was infra, not empty result
+  const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new ApifyInfraError(`${slug} failed after ${MAX_ATTEMPTS} attempts: ${msg}`, slug);
 }
 
 // ── Concurrency helper ───────────────────────────────────────────────────────
@@ -353,15 +398,30 @@ async function enrichWithApollo(jobs: JobIn[], costCtx?: CostCtx): Promise<Recor
   if (!APIFY_API_KEY) throw new Error("APIFY_API_KEY not configured");
 
   const results: Record<string, Record<string, unknown>> = {};
+  const infraErrors: string[] = [];
 
   await withConcurrency(jobs, async (job) => {
     try {
       const dm = await apolloChain(job, costCtx);
       results[job.id] = { ...dm, dm_enriched_at: new Date().toISOString() };
     } catch (e) {
-      console.error(`[apollo] ${job.company_name} failed:`, String(e));
+      if (e instanceof ApifyInfraError) {
+        infraErrors.push(`${job.company_name}: ${e.message}`);
+        // Do not add to results — batch will abort below
+      } else {
+        console.error(`[apollo] ${job.company_name} failed:`, String(e));
+      }
     }
   });
+
+  // If ≥ 30% of jobs hit infra errors, abort the whole batch so caller doesn't
+  // increment attempts on transient failures.
+  if (infraErrors.length >= Math.max(1, Math.ceil(jobs.length * 0.3))) {
+    throw new ApifyInfraError(
+      `Apollo batch: ${infraErrors.length}/${jobs.length} jobs hit infra errors. First: ${infraErrors[0]}`,
+      "apollo-batch",
+    );
+  }
 
   return results;
 }
@@ -457,6 +517,14 @@ serve(async (req: Request) => {
 
     return json({ success: true, method, enrichments, enrichedCount, costUsd: costCtx.totalCostUsd });
   } catch (err) {
+    if (err instanceof ApifyInfraError) {
+      return json({
+        error: err.message,
+        code: "APIFY_INFRA_ERROR",
+        retryable: true,
+        actor: err.actor,
+      }, 502);
+    }
     return json({ error: `Enrichment failed: ${String(err)}` }, 500);
   }
 });

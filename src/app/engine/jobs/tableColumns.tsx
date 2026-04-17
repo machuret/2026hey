@@ -161,6 +161,15 @@ const stuckReasonCell = (job: JobLead) => (
 
 // ── COLUMN SETS PER STAGE ──────────────────────────────────────────────────
 
+/** Scrape results preview — jobs just scraped (pre-save or post-save, no DB IDs yet sometimes) */
+export const SCRAPE_RESULTS_COLUMNS: TableColumn[] = [
+  { key: "company",  header: "Company",   render: companyCell },
+  { key: "title",    header: "Job Title", render: titleCell },
+  { key: "location", header: "Location",  render: locationCell },
+  { key: "source",   header: "Source",    render: sourceCell },
+  { key: "listed",   header: "Listed",    render: listedAtCell },
+];
+
 /** Pending — raw scraped jobs, "should we enrich this?" */
 export const PENDING_COLUMNS: TableColumn[] = [
   { key: "company",  header: "Company",  render: companyCell },

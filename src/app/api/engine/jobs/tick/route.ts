@@ -4,10 +4,11 @@ import { getEngineAdmin } from "@/lib/engineSupabase";
 import { extractErrorMsg } from "@/app/engine/jobs/utils";
 import { checkBudget, BudgetExceededError } from "@/lib/engineApiGuard";
 import {
-  fetchJobsByIds,
   trimForEnrich,
   callEnrichEdgeFn,
   applyEnrichmentsBatch,
+  releaseClaimLocks,
+  TransientApiError,
 } from "@/lib/engineEnrichHelpers";
 
 export const dynamic = "force-dynamic";
@@ -43,37 +44,10 @@ export async function POST(req: NextRequest) {
     const batchSize: number = Math.min(Math.max(Number(body.batchSize) || 20, 1), 50);
 
     const db = getEngineAdmin();
-    const now = new Date().toISOString();
 
-    // ── Helper: find pending jobs (new, not ai-analyzed, not recently tried) ──
-    async function findPendingJobs(n: number): Promise<Record<string, unknown>[]> {
-      const { data, error } = await db
-        .from("job_leads")
-        .select("*")
-        .is("ai_enriched_at", null)
-        .lt("ai_attempts", 2)
-        .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)")
-        .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
-        .order("created_at", { ascending: true })
-        .limit(n);
-      if (error) throw error;
-      return (data ?? []) as Record<string, unknown>[];
-    }
-
-    // ── Helper: find qualified jobs (AI done, relevant, no DM yet) ──────────
-    async function findQualifiedJobs(n: number): Promise<Record<string, unknown>[]> {
-      const { data, error } = await db
-        .from("job_leads")
-        .select("*")
-        .not("ai_enriched_at", "is", null)
-        .gte("ai_relevance_score", 6)
-        .eq("ai_poster_type", "internal")
-        .is("dm_name", null)
-        .lt("dm_attempts", 3)
-        .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)")
-        .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
-        .order("ai_enriched_at", { ascending: true })
-        .limit(n);
+    // ── Atomic claim via RPC (race-safe across concurrent workers) ─────────
+    async function claim(rpc: "engine_claim_jobs_for_analyze" | "engine_claim_jobs_for_dm", n: number) {
+      const { data, error } = await db.rpc(rpc, { batch_size: n });
       if (error) throw error;
       return (data ?? []) as Record<string, unknown>[];
     }
@@ -85,21 +59,15 @@ export async function POST(req: NextRequest) {
     let method: "ai" | "apollo" = "ai";
 
     if (!stage || stage === "analyze") {
-      // Check budget before fetching
       const aiBudget = await checkBudget("openai");
       if (aiBudget.ok) {
-        jobs = await findPendingJobs(batchSize);
+        jobs = await claim("engine_claim_jobs_for_analyze", batchSize);
         if (jobs.length > 0) {
-          stage = "analyze";
-          api = "openai";
-          method = "ai";
+          stage = "analyze"; api = "openai"; method = "ai";
         }
       } else if (stage === "analyze") {
         return NextResponse.json({
-          success: false,
-          stage: "analyze",
-          code: "BUDGET_EXCEEDED",
-          reason: aiBudget.reason,
+          success: false, stage: "analyze", code: "BUDGET_EXCEEDED", reason: aiBudget.reason,
         }, { status: 429 });
       }
     }
@@ -107,78 +75,71 @@ export async function POST(req: NextRequest) {
     if (jobs.length === 0 && (!requestedStage || requestedStage === "find-dm")) {
       const dmBudget = await checkBudget("apollo");
       if (dmBudget.ok) {
-        jobs = await findQualifiedJobs(Math.min(batchSize, 10));
+        jobs = await claim("engine_claim_jobs_for_dm", Math.min(batchSize, 10));
         if (jobs.length > 0) {
-          stage = "find-dm";
-          api = "apollo";
-          method = "apollo";
+          stage = "find-dm"; api = "apollo"; method = "apollo";
         }
       } else if (stage === "find-dm") {
         return NextResponse.json({
-          success: false,
-          stage: "find-dm",
-          code: "BUDGET_EXCEEDED",
-          reason: dmBudget.reason,
+          success: false, stage: "find-dm", code: "BUDGET_EXCEEDED", reason: dmBudget.reason,
         }, { status: 429 });
       }
     }
 
-    // Nothing to do anywhere
     if (jobs.length === 0) {
-      return NextResponse.json({
-        success: true,
-        done: true,
-        message: "No eligible jobs in any stage",
-      });
+      return NextResponse.json({ success: true, done: true, message: "No eligible jobs in any stage" });
     }
 
     // ── Run the stage ──────────────────────────────────────────────────────
-    const ids = jobs.map((j) => String(j.id));
-    const fullJobs = await fetchJobsByIds(ids);
-
+    const claimedIds = jobs.map((j) => String(j.id));
     const start = Date.now();
-    const { enrichments, costUsd } = await callEnrichEdgeFn({
-      method,
-      jobs: fullJobs.map(trimForEnrich),
-      req,
-      api,
-    });
-    const durationMs = Date.now() - start;
 
-    // For DM stage, filter out empty enrichments (they count as failures)
-    let realEnrichments = enrichments;
-    if (method === "apollo") {
-      realEnrichments = {};
-      for (const [id, fields] of Object.entries(enrichments)) {
-        if (fields.dm_name && (fields.dm_email || fields.dm_linkedin_url)) {
-          realEnrichments[id] = fields;
+    try {
+      const { enrichments, costUsd } = await callEnrichEdgeFn({
+        method, jobs: jobs.map(trimForEnrich), req, api,
+      });
+      const durationMs = Date.now() - start;
+
+      // For DM stage, only non-empty enrichments with actual contact info count as successes.
+      let realEnrichments = enrichments;
+      if (method === "apollo") {
+        realEnrichments = {};
+        for (const [id, fields] of Object.entries(enrichments)) {
+          if (fields.dm_name && (fields.dm_email || fields.dm_linkedin_url)) {
+            realEnrichments[id] = fields;
+          }
         }
       }
+
+      const summary = await applyEnrichmentsBatch({
+        method, originalJobs: jobs, enrichments: realEnrichments, costUsd, durationMs,
+      });
+
+      return NextResponse.json({
+        success: true, done: false, stage, processed: jobs.length, costUsd, ...summary,
+      });
+    } catch (err) {
+      // Transient infra error: release the claim lock so jobs retry next tick
+      // WITHOUT incrementing their attempt counter. This is the whole point of
+      // distinguishing infra failures from "no results found".
+      if (err instanceof TransientApiError) {
+        await releaseClaimLocks(claimedIds).catch(() => {});
+        return NextResponse.json({
+          success: false,
+          code: "TRANSIENT_API_ERROR",
+          api: err.api,
+          reason: err.message,
+          released: claimedIds.length,
+        }, { status: 503 });
+      }
+      // Other errors: also release locks so jobs aren't stuck for 10 min.
+      await releaseClaimLocks(claimedIds).catch(() => {});
+      throw err;
     }
-
-    const summary = await applyEnrichmentsBatch({
-      method,
-      originalJobs: fullJobs,
-      enrichments: realEnrichments,
-      costUsd,
-      durationMs,
-    });
-
-    return NextResponse.json({
-      success: true,
-      done: false,
-      stage,
-      processed: fullJobs.length,
-      costUsd,
-      ...summary,
-    });
   } catch (err) {
     if (err instanceof BudgetExceededError) {
       return NextResponse.json({
-        success: false,
-        code: "BUDGET_EXCEEDED",
-        api: err.api,
-        reason: err.message,
+        success: false, code: "BUDGET_EXCEEDED", api: err.api, reason: err.message,
       }, { status: 429 });
     }
     return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });

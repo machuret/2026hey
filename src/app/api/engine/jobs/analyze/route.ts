@@ -7,6 +7,7 @@ import {
   trimForEnrich,
   callEnrichEdgeFn,
   applyEnrichmentsBatch,
+  TransientApiError,
 } from "@/lib/engineEnrichHelpers";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof BudgetExceededError) {
       return NextResponse.json({ error: err.message, code: "BUDGET_EXCEEDED", api: err.api }, { status: 429 });
+    }
+    if (err instanceof TransientApiError) {
+      return NextResponse.json({ error: err.message, code: "TRANSIENT_API_ERROR", api: err.api, retryable: true }, { status: 503 });
     }
     return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }

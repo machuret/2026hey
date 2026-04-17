@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AutoPilotV2 from "./components/AutoPilotV2";
+import { usePipelineRefresh } from "./pipelineEvents";
 
 type StageLink = {
   href: string;
@@ -26,13 +27,16 @@ export default function JobsLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const [stats, setStats] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    // Fetch pipeline stats for the badges (fire-and-forget, updates on nav)
+  const loadStats = useCallback(() => {
     fetch("/api/engine/jobs/stats", { signal: AbortSignal.timeout(10_000) })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d?.stats) setStats(d.stats); })
       .catch(() => {});
-  }, [pathname]);
+  }, []);
+
+  // Refetch on nav AND whenever a pipeline mutation fires.
+  useEffect(() => { loadStats(); }, [pathname, loadStats]);
+  usePipelineRefresh(loadStats);
 
   return (
     <div className="flex flex-col h-full">

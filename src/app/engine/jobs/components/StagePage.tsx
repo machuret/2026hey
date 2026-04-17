@@ -12,6 +12,7 @@ import type { TableColumn } from "../tableColumns";
 import { useJobList, useJobPipelineState } from "@/hooks/useJobPipeline";
 import JobsTableV2 from "./JobsTableV2";
 import JobDetailDrawer from "./JobDetailDrawer";
+import { usePipelineRefresh } from "../pipelineEvents";
 
 const PAGE_SIZE = 50;
 
@@ -47,6 +48,9 @@ export default function StagePage({
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
+
+  // Auto-refresh whenever any other part of the app triggers a pipeline refresh.
+  usePipelineRefresh(refresh);
 
   const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);

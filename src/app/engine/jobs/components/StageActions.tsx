@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Users, Send, RotateCcw, Trash2, Loader2 } from "lucide-react";
+import { Sparkles, Users, Send, RotateCcw, Loader2 } from "lucide-react";
 import type { JobLead } from "../types";
+import { emitPipelineRefresh } from "../pipelineEvents";
 
 type Endpoint = "analyze" | "find-dm" | "push-to-crm" | "retry-stuck";
 
@@ -73,6 +74,7 @@ function useAction(endpoint: Endpoint, refresh: () => void) {
         if (data.costUsd) summary += ` · $${Number(data.costUsd).toFixed(4)}`;
         setMsg(summary);
         refresh();
+        emitPipelineRefresh();   // notify other pages + nav badges
       }
     } catch (e) {
       setMsg(`⚠ ${e instanceof Error ? e.message : String(e)}`);
@@ -99,6 +101,19 @@ function MsgPill({ msg }: { msg: string }) {
 // Stage-specific bulk action bars
 // ══════════════════════════════════════════════════════════════════════════
 
+const ANALYZE_MAX = 50;
+const FIND_DM_MAX = 20;
+
+/** Small warning pill shown when total exceeds the batch cap. */
+function OverflowWarning({ total, cap }: { total: number; cap: number }) {
+  if (total <= cap) return null;
+  return (
+    <span className="text-xs text-amber-400">
+      ⓘ Only first {cap} of {total} will run — use AutoPilot to process all.
+    </span>
+  );
+}
+
 export function PendingActions({ selected, jobs, refresh }: {
   selected: Set<string>; jobs: JobLead[]; refresh: () => void;
 }) {
@@ -109,21 +124,22 @@ export function PendingActions({ selected, jobs, refresh }: {
   return (
     <>
       <ActionButton
-        onClick={() => action.run(selectedIds)}
+        onClick={() => action.run(selectedIds.slice(0, ANALYZE_MAX))}
         disabled={selectedIds.length === 0}
         loading={action.loading}
         icon={Sparkles}
-        label={`Analyze Selected (${selectedIds.length})`}
+        label={`Analyze Selected (${Math.min(selectedIds.length, ANALYZE_MAX)})`}
         color="indigo"
       />
       <ActionButton
-        onClick={() => action.run(allIds.slice(0, 50))}
+        onClick={() => action.run(allIds.slice(0, ANALYZE_MAX))}
         disabled={allIds.length === 0}
         loading={action.loading}
         icon={Sparkles}
-        label={`Analyze All (max 50)`}
+        label={`Analyze All (${Math.min(allIds.length, ANALYZE_MAX)})`}
         color="blue"
       />
+      <OverflowWarning total={allIds.length} cap={ANALYZE_MAX} />
       <MsgPill msg={action.msg} />
     </>
   );
@@ -139,21 +155,22 @@ export function QualifiedActions({ selected, jobs, refresh }: {
   return (
     <>
       <ActionButton
-        onClick={() => action.run(selectedIds)}
+        onClick={() => action.run(selectedIds.slice(0, FIND_DM_MAX))}
         disabled={selectedIds.length === 0}
         loading={action.loading}
         icon={Users}
-        label={`Find DM (${selectedIds.length})`}
+        label={`Find DM (${Math.min(selectedIds.length, FIND_DM_MAX)})`}
         color="emerald"
       />
       <ActionButton
-        onClick={() => action.run(allIds.slice(0, 20))}
+        onClick={() => action.run(allIds.slice(0, FIND_DM_MAX))}
         disabled={allIds.length === 0}
         loading={action.loading}
         icon={Users}
-        label={`Find DM for All (max 20)`}
+        label={`Find DM All (${Math.min(allIds.length, FIND_DM_MAX)})`}
         color="blue"
       />
+      <OverflowWarning total={allIds.length} cap={FIND_DM_MAX} />
       <MsgPill msg={action.msg} />
     </>
   );
@@ -176,7 +193,11 @@ export function StuckActions({ selected, jobs: _jobs, refresh }: {
         color="orange"
       />
       <ActionButton
-        onClick={() => action.run([])}
+        onClick={() => {
+          if (window.confirm("Reset ALL stuck jobs? This will re-queue every job currently in 'stuck_no_dm' for another DM search attempt and may spend API budget.")) {
+            action.run([]);
+          }
+        }}
         loading={action.loading}
         icon={RotateCcw}
         label="Reset ALL Stuck"

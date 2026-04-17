@@ -11,6 +11,16 @@ import type { NextRequest } from "next/server";
 
 export type EnrichMethod = "ai" | "apollo" | "linkedin";
 
+/** Thrown when the underlying API (Apify/OpenAI) was unreachable — caller
+ *  should NOT increment attempt counters, since it's a transient outage.
+ *  The tick worker's claim lock will expire after 10 min and retry. */
+export class TransientApiError extends Error {
+  constructor(msg: string, public api: string) {
+    super(msg);
+    this.name = "TransientApiError";
+  }
+}
+
 /**
  * Trim a JobLead to the minimal shape the edge function needs.
  * Also strips the description to 5K chars for cost control.
@@ -76,6 +86,12 @@ export async function callEnrichEdgeFn(params: {
   );
 
   const data = await res.json();
+
+  // Transient infra failure — caller must not increment attempts
+  if (data.code === "APIFY_INFRA_ERROR" || (res.status === 502 && data.retryable)) {
+    throw new TransientApiError(data.error ?? "Apify unreachable", params.api);
+  }
+
   if (!data.success) {
     throw new Error(data.error ?? "Edge function returned unsuccessful");
   }
@@ -112,81 +128,104 @@ export async function applyEnrichmentsBatch(params: {
     params.method === "apollo" ? "dm_failure_reason" :
     "li_failure_reason";
 
-  let successes = 0;
-  let failures  = 0;
-  let transitions = 0;
+  // Count successful enrichments up-front so we can attribute cost correctly.
+  // A "success" is a non-empty enrichment object for that job.
+  const successIds = new Set<string>();
+  for (const [id, fields] of Object.entries(params.enrichments)) {
+    if (fields && Object.keys(fields).length > 0) successIds.add(id);
+  }
 
-  // Amortize cost across jobs for per-job tracking
-  const perJobCost = params.originalJobs.length > 0
-    ? params.costUsd / params.originalJobs.length
-    : 0;
+  // Cost attribution:
+  //   - If there are successes: spread cost over successful jobs only
+  //     (more accurate — failed jobs don't "earn" their share of spend)
+  //   - Else: spread evenly across all attempted jobs (we still spent money)
+  const costBase = successIds.size > 0 ? successIds.size : params.originalJobs.length;
+  const perJobCost = costBase > 0 ? params.costUsd / costBase : 0;
+  const perJobDurationMs = params.originalJobs.length > 0
+    ? Math.round(params.durationMs / params.originalJobs.length)
+    : params.durationMs;
 
-  for (const job of params.originalJobs) {
+  const now = new Date().toISOString();
+
+  // Build + dispatch all UPDATEs in parallel. Each returns { jobId, ok, fromStage, toStage, isSuccess }
+  const results = await Promise.all(params.originalJobs.map(async (job) => {
     const jobId = String(job.id);
     const fromStage = computeStage(job as Parameters<typeof computeStage>[0]);
     const enrichment = params.enrichments[jobId];
+    const isSuccess = successIds.has(jobId);
 
-    // Build the UPDATE patch
+    // Always: increment attempts, add cost, release the claim lock, stamp updated_at.
     const patch: Record<string, unknown> = {
-      [attemptField]: Number(job[attemptField] ?? 0) + 1,
-      total_cost_usd: Number(job.total_cost_usd ?? 0) + perJobCost,
-      updated_at: new Date().toISOString(),
+      [attemptField]:   Number(job[attemptField] ?? 0) + 1,
+      total_cost_usd:   Number(job.total_cost_usd ?? 0) + (isSuccess ? perJobCost : 0),
+      next_retry_at:    null,   // release claim lock
+      updated_at:       now,
     };
 
-    if (enrichment && Object.keys(enrichment).length > 0) {
-      // SUCCESS: write enrichment fields, clear failure reason
+    if (isSuccess) {
+      // SUCCESS: write enrichment fields, clear failure reasons
       Object.assign(patch, enrichment);
       patch[failureField] = null;
-      patch.last_error = null;
+      patch.last_error    = null;
 
-      // Status transition
+      // Status transitions
       if (params.method === "ai") {
-        patch.status = job.status === "new" ? "ai_enriched" : job.status;
-        // Auto-dismiss agency posts
+        if (job.status === "new") patch.status = "ai_enriched";
+        // Auto-dismiss agency posts (high-confidence signal from AI)
         if (enrichment.ai_poster_type === "agency_recruiter") {
           patch.status = "recruiter_dismissed";
         }
       } else if (params.method === "apollo" && enrichment.dm_name) {
-        patch.status = job.status === "ai_enriched" ? "dm_enriched" : job.status;
+        if (job.status === "ai_enriched") patch.status = "dm_enriched";
       }
-
-      successes++;
     } else {
-      // FAILURE: record reason
+      // FAILURE: record reason (attempts already incremented above)
       patch[failureField] = `${params.method} returned no data`;
-      patch.last_error = `${params.method}: no enrichment returned`;
-      failures++;
+      patch.last_error    = `${params.method}: no enrichment returned`;
     }
 
-    // Apply the patch
-    const { error: updateErr } = await db
-      .from("job_leads")
-      .update(patch)
-      .eq("id", jobId);
-
-    if (updateErr) {
-      console.error(`[enrichHelpers] Failed to update job ${jobId}:`, updateErr);
-      failures++;
-      continue;
+    const { error } = await db.from("job_leads").update(patch).eq("id", jobId);
+    if (error) {
+      console.error(`[enrichHelpers] Failed to update job ${jobId}:`, error.message);
+      return { jobId, ok: false, fromStage, toStage: fromStage, isSuccess: false };
     }
 
-    // Log stage transition (don't await — fire and forget)
     const updatedJob = { ...job, ...patch };
     const toStage = computeStage(updatedJob as Parameters<typeof computeStage>[0]);
-    if (toStage !== fromStage) {
-      logStageTransition({
-        job_id: jobId,
-        from_stage: fromStage,
-        to_stage: toStage,
-        success: !!enrichment,
-        reason: `${params.method} enrichment`,
-        cost_usd: perJobCost,
-        duration_ms: Math.round(params.durationMs / params.originalJobs.length),
-        error_msg: enrichment ? null : `No ${params.method} result`,
-      }).catch(() => {});
-      transitions++;
-    }
-  }
+    return { jobId, ok: true, fromStage, toStage, isSuccess };
+  }));
+
+  // Fire all stage-transition audit writes in parallel (fire-and-forget; we don't
+  // want a flaky audit write to take down the main write path).
+  const transitionsToLog = results.filter((r) => r.ok && r.fromStage !== r.toStage);
+  Promise.all(transitionsToLog.map((r) =>
+    logStageTransition({
+      job_id:      r.jobId,
+      from_stage:  r.fromStage,
+      to_stage:    r.toStage,
+      success:     r.isSuccess,
+      reason:      `${params.method} enrichment`,
+      cost_usd:    r.isSuccess ? perJobCost : 0,
+      duration_ms: perJobDurationMs,
+      error_msg:   r.isSuccess ? null : `No ${params.method} result`,
+    }).catch((e) => console.error("[enrichHelpers] transition log failed:", e)),
+  )).catch(() => {});
+
+  const successes  = results.filter((r) => r.ok && r.isSuccess).length;
+  const failures   = results.filter((r) => !r.ok || !r.isSuccess).length;
+  const transitions = transitionsToLog.length;
 
   return { successes, failures, transitions };
+}
+
+/** Release the claim lock (next_retry_at) for a set of jobs without touching
+ *  other fields. Use when the worker bails out before calling applyEnrichmentsBatch
+ *  (e.g. a TransientApiError). Jobs become eligible for retry immediately. */
+export async function releaseClaimLocks(jobIds: string[]): Promise<void> {
+  if (!jobIds.length) return;
+  const db = getEngineAdmin();
+  await db
+    .from("job_leads")
+    .update({ next_retry_at: null, updated_at: new Date().toISOString() })
+    .in("id", jobIds);
 }

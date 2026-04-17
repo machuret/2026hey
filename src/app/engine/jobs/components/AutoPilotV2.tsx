@@ -11,6 +11,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Rocket, Loader2 } from "lucide-react";
+import { emitPipelineRefresh } from "../pipelineEvents";
 
 type TickResult = {
   success: boolean;
@@ -91,6 +92,7 @@ export default function AutoPilotV2() {
         totalProcessed += processed;
         totalCost += cost;
         setStats({ ticks, processed: totalProcessed, cost: totalCost });
+        emitPipelineRefresh();   // update nav badges + current page
 
         const detail = data.stage === "analyze"
           ? `${data.successes}/${processed} analyzed`

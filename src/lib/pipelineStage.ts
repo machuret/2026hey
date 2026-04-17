@@ -82,21 +82,3 @@ export const STAGE_DESCRIPTIONS: Record<PipelineStage, string> = {
   dismissed:   "Dismissed manually or automatically",
 };
 
-/** SQL fragments for server-side filtering by stage.
- *  Use with Supabase query builder via `.or()` / `.filter()`. */
-export const STAGE_SQL_FILTERS = {
-  pending:
-    "status=neq.pushed_to_crm,status=neq.dismissed,status=neq.recruiter_dismissed,ai_enriched_at=is.null",
-  qualified:
-    "ai_enriched_at=not.is.null,ai_relevance_score=gte.6,ai_poster_type=eq.internal,dm_name=is.null,dm_attempts=lt.3",
-  dead_end:
-    "ai_enriched_at=not.is.null,or=(ai_relevance_score.lt.6,ai_poster_type.neq.internal)",
-  stuck_no_dm:
-    "ai_enriched_at=not.is.null,dm_name=is.null,dm_attempts=gte.3",
-  enriched:
-    "dm_name=not.is.null,or=(dm_email.not.is.null,dm_linkedin_url.not.is.null),status=neq.pushed_to_crm,status=neq.dismissed",
-  pushed:
-    "status=eq.pushed_to_crm",
-  dismissed:
-    "or=(status.eq.dismissed,status.eq.recruiter_dismissed)",
-} as const;

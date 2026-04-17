@@ -4,7 +4,8 @@ import { Save, Loader2, DollarSign } from "lucide-react";
 import type { JobLead, JobSearchForm as FormType, JobSource, SourceDef } from "../types";
 import type { SavedSearchesHook } from "@/hooks/useJobSavedSearches";
 import JobSearchForm from "./JobSearchForm";
-import JobsTable from "./JobsTable";
+import JobsTableV2 from "./JobsTableV2";
+import { SCRAPE_RESULTS_COLUMNS } from "../tableColumns";
 
 type Props = {
   form: FormType;
@@ -87,12 +88,14 @@ export default function ScrapeTab({
             </div>
           )}
         </div>
-        <JobsTable
+        <JobsTableV2
           jobs={jobs}
+          columns={SCRAPE_RESULTS_COLUMNS}
           selected={selected}
           toggle={toggle}
           toggleAll={toggleAll}
           onViewDetail={onViewDetail}
+          emptyMessage="No jobs scraped yet. Fill the form and click Scrape."
         />
       </div>
     </div>

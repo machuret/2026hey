@@ -1,10 +1,17 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Engine API Guard — centralized budget + rate limit + logging helper.
-// Every enrichment call should go through `callApi(...)` for:
-//   • Pre-flight budget check (per-day $ cap)
-//   • Pre-flight call cap check (per-day call count)
-//   • Post-flight usage logging (cost, latency, success/fail)
-//   • Circuit breaker (auto-pause API after N consecutive failures)
+// Engine API Guard — budget checks, usage logging, circuit breaker, audit.
+//
+// Exports (each used directly — no grand wrapper):
+//   • checkBudget(api)            — pre-flight cap check (call this FIRST)
+//   • logApiCall({...})           — post-flight usage log (fire-and-forget)
+//   • circuitBreakerCheck(api)    — auto-pause API after N consecutive fails
+//   • logStageTransition({...})   — audit trail for pipeline movement
+//   • BudgetExceededError         — thrown when caps hit (→ HTTP 429)
+//   • ApiPausedError              — thrown when API is manually paused
+//
+// Callers are responsible for invoking checkBudget + logApiCall around their
+// actual API calls. This gives each call site control over cost attribution
+// (which matters when one API call produces results for multiple jobs).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { getEngineAdmin } from "@/lib/engineSupabase";
@@ -153,60 +160,6 @@ export async function circuitBreakerCheck(
         updated_at: new Date().toISOString(),
       })
       .eq("api", api);
-  }
-}
-
-/** Wrap an API call with pre-flight budget check + post-flight logging + circuit breaker. */
-export async function callApi<T>(
-  params: {
-    api: EngineApi;
-    operation: string;
-    job_id?: string | null;
-    estimated_cost_usd?: number;
-  },
-  fn: () => Promise<{ result: T; cost_usd: number; status_code?: number }>,
-): Promise<T> {
-  // 1. Pre-flight: budget check
-  const check = await checkBudget(params.api);
-  if (!check.ok) {
-    throw new BudgetExceededError(params.api, check.reason ?? "unknown");
-  }
-
-  // 2. Execute + measure
-  const start = Date.now();
-  try {
-    const { result, cost_usd, status_code } = await fn();
-    const latency_ms = Date.now() - start;
-
-    await logApiCall({
-      api:        params.api,
-      operation:  params.operation,
-      job_id:     params.job_id,
-      cost_usd,
-      latency_ms,
-      success:    true,
-      status_code: status_code ?? 200,
-    });
-
-    return result;
-  } catch (err: unknown) {
-    const latency_ms = Date.now() - start;
-    const msg = err instanceof Error ? err.message : String(err);
-
-    await logApiCall({
-      api:        params.api,
-      operation:  params.operation,
-      job_id:     params.job_id,
-      cost_usd:   0,
-      latency_ms,
-      success:    false,
-      error_msg:  msg,
-    });
-
-    // Fire circuit breaker check (async, don't block)
-    circuitBreakerCheck(params.api).catch(() => {});
-
-    throw err;
   }
 }
 
