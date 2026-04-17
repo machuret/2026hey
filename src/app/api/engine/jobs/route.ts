@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const db = getEngineAdmin();
     const url = new URL(req.url);
     const status  = url.searchParams.get("status");
+    const stage   = url.searchParams.get("stage");
     const source  = url.searchParams.get("source");
     const country = url.searchParams.get("country");
     const search  = url.searchParams.get("search");
@@ -25,6 +26,52 @@ export async function GET(req: NextRequest) {
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    // Stage filter — computed from existing fields (mirrors computeStage in lib/pipelineStage.ts)
+    if (stage) {
+      switch (stage) {
+        case "pending":
+          query = query
+            .is("ai_enriched_at", null)
+            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+          break;
+        case "qualified":
+          query = query
+            .not("ai_enriched_at", "is", null)
+            .gte("ai_relevance_score", 6)
+            .eq("ai_poster_type", "internal")
+            .is("dm_name", null)
+            .lt("dm_attempts", 3)
+            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+          break;
+        case "dead_end":
+          query = query
+            .not("ai_enriched_at", "is", null)
+            .is("dm_name", null)
+            .or("ai_relevance_score.lt.6,ai_poster_type.neq.internal")
+            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+          break;
+        case "stuck_no_dm":
+          query = query
+            .not("ai_enriched_at", "is", null)
+            .is("dm_name", null)
+            .gte("dm_attempts", 3)
+            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+          break;
+        case "enriched":
+          query = query
+            .not("dm_name", "is", null)
+            .or("dm_email.not.is.null,dm_linkedin_url.not.is.null")
+            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+          break;
+        case "pushed":
+          query = query.eq("status", "pushed_to_crm");
+          break;
+        case "dismissed":
+          query = query.in("status", ["dismissed", "recruiter_dismissed"]);
+          break;
+      }
+    }
 
     if (status)  query = query.eq("status", status);
     if (source)  query = query.eq("source", source);

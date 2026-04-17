@@ -72,6 +72,15 @@ function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
     li_industry:         null,
     li_hq_location:      null,
     li_enriched_at:      null,
+    ai_attempts:         0,
+    dm_attempts:         0,
+    li_attempts:         0,
+    ai_failure_reason:   null,
+    dm_failure_reason:   null,
+    li_failure_reason:   null,
+    last_error:          null,
+    next_retry_at:       null,
+    total_cost_usd:      0,
     status:              "new",
     search_query:        null,
     listed_at:           (raw.listed_at as string) || null,
@@ -118,80 +127,132 @@ export function useJobScrape(
   const [saving, setSaving] = useState(false);
   const [scrapeCost, setScrapeCost] = useState<number | null>(null);
 
+  /** Scrape a single city and auto-save to DB. Returns hydrated jobs (with real DB IDs). */
+  const scrapeCity = useCallback(async (city: string, formSnapshot: JobSearchForm): Promise<{
+    jobs: JobLead[];
+    cost: number;
+    error?: string;
+  }> => {
+    const payload = { ...formSnapshot, location: city, locations: undefined };
+    const res = await fetch("/api/engine/jobs/scrape", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: externalSignal ?? AbortSignal.timeout(170_000),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      return { jobs: [], cost: 0, error: `[${res.status}] ${data.error ?? "Scrape failed"}` };
+    }
+
+    const cost = Number(data.costUsd ?? 0);
+    const rawJobs = (data.jobs ?? []) as Record<string, unknown>[];
+    if (rawJobs.length === 0) return { jobs: [], cost };
+
+    // Hydrate with temp UUIDs (will be replaced by DB IDs after save)
+    const hydrated: JobLead[] = rawJobs.map((raw) => ({
+      ...hydrateScrapedJob(raw),
+      job_category: formSnapshot.industry || null,
+    }));
+
+    // Auto-save this city's batch to DB immediately — eliminates data loss on tab close
+    try {
+      const saveRes = await fetch("/api/engine/jobs/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobs: hydrated, searchQuery: formSnapshot.searchTerm }),
+        signal: externalSignal ?? AbortSignal.timeout(30_000),
+      });
+      const saveData = await saveRes.json();
+
+      // Replace temp UUIDs with real DB rows where available (match by source+source_id)
+      const inserted = (saveData.inserted ?? []) as JobLead[];
+      const byKey = new Map(inserted.map((r) => [`${r.source}::${r.source_id}`, r]));
+      const withDbIds = hydrated.map((j) => byKey.get(`${j.source}::${j.source_id}`) ?? j);
+      return { jobs: withDbIds, cost };
+    } catch (saveErr) {
+      // Scrape succeeded but save failed — return scraped jobs with temp IDs so user sees them
+      console.error("[scrapeCity] auto-save failed:", saveErr);
+      return { jobs: hydrated, cost, error: `Auto-save failed for ${city || "location"}: ${extractErrorMsg(saveErr)}` };
+    }
+  }, [externalSignal]);
+
   const scrape = useCallback(async () => {
     if (!form.searchTerm.trim()) { setScrapeError("Enter a search term"); return; }
     const cities = form.locations.length > 0 ? form.locations : [""];
 
-    // Clear previous scrape results before starting a new search
     onClearJobs();
     setScraping(true); setScrapeError(""); setSaveMsg(""); setScrapeCost(null); setScrapeProgress("");
 
-    let allJobs: JobLead[] = [];
+    const formSnapshot = form;
+    const allJobs: JobLead[] = [];
     let totalCost = 0;
+    let totalImported = 0;
+    let completed = 0;
+    const errors: string[] = [];
+
+    // Concurrency control — max 3 cities in flight at once
+    const CONCURRENCY = 3;
+    let idx = 0;
+
+    const updateProgress = () => {
+      setScrapeProgress(
+        cities.length > 1
+          ? `Scraped ${completed}/${cities.length} cities — ${allJobs.length} jobs saved`
+          : `Scraping jobs…`,
+      );
+    };
+    updateProgress();
+
+    async function worker() {
+      while (idx < cities.length) {
+        const myIdx = idx++;
+        const city = cities[myIdx];
+        const result = await scrapeCity(city, formSnapshot);
+        if (result.error) errors.push(result.error);
+        allJobs.push(...result.jobs);
+        totalCost += result.cost;
+        totalImported += result.jobs.length;
+        completed++;
+        updateProgress();
+      }
+    }
 
     try {
-      for (let ci = 0; ci < cities.length; ci++) {
-        const city = cities[ci];
-        if (cities.length > 1) {
-          setScrapeProgress(`Scraping ${city || "all locations"} (${ci + 1}/${cities.length})…`);
-        } else {
-          setScrapeProgress("Scraping jobs…");
-        }
-
-        const payload = { ...form, location: city, locations: undefined };
-        const res = await fetch("/api/engine/jobs/scrape", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: externalSignal ?? AbortSignal.timeout(170_000),
-        });
-        const data = await res.json();
-        if (!data.success) {
-          setScrapeError(`[${res.status}] ${data.error ?? "Scrape failed — unknown error"}`);
-          continue;
-        }
-
-        if (data.costUsd != null) totalCost += data.costUsd;
-
-        const rawJobs = (data.jobs ?? []) as Record<string, unknown>[];
-        const hydrated: JobLead[] = rawJobs.map((raw) => ({
-          ...hydrateScrapedJob(raw),
-          job_category: form.industry || null,
-        }));
-        allJobs = [...allJobs, ...hydrated];
-
-        if (cities.length > 1) {
-          setScrapeProgress(`Scraping ${city || "all locations"} (${ci + 1}/${cities.length}) — ${allJobs.length} jobs so far`);
-        }
-
-        // Pause between cities to avoid hammering
-        if (ci < cities.length - 1) {
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-      }
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, cities.length) }, () => worker()),
+      );
 
       if (totalCost > 0) setScrapeCost(totalCost);
 
-      // Dedup by source_id across cities
+      // Dedup by source_id across cities (already DB-deduped, but belt-and-braces)
       const seen = new Set<string>();
       const unique = allJobs.filter((j) => {
-        if (seen.has(j.source_id)) return false;
-        seen.add(j.source_id);
+        const key = `${j.source}::${j.source_id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
       });
 
-      if (unique.length === 0) { setScrapeError("No jobs found — try different keywords or cities"); return; }
+      if (unique.length === 0) {
+        setScrapeError(errors.length ? errors.join(" | ") : "No jobs found — try different keywords or cities");
+        return;
+      }
+
+      if (errors.length) setScrapeError(`Partial success: ${errors.join(" | ")}`);
+      setSaveMsg(`✓ Scraped + saved ${totalImported} jobs from ${cities.length} cit${cities.length === 1 ? "y" : "ies"}`);
       onDone(unique);
     } catch (e: unknown) {
-      if (e instanceof Error && e.name === "AbortError") return; // cancelled externally
+      if (e instanceof Error && e.name === "AbortError") return;
       if (e instanceof Error && e.name === "TimeoutError") {
         setScrapeError("Scrape timed out (170s) — try fewer results");
       } else {
-        setScrapeError(`Scrape request failed: ${extractErrorMsg(e)}`);
+        setScrapeError(`Scrape failed: ${extractErrorMsg(e)}`);
       }
     } finally { setScraping(false); setScrapeProgress(""); }
-  }, [form, onDone, onClearJobs, externalSignal]);
+  }, [form, onDone, onClearJobs, scrapeCity]);
 
+  /** Legacy manual save — kept for backward compat if called explicitly, but scrape() now auto-saves per city. */
   const saveJobs = useCallback(async (jobs: JobLead[]) => {
     if (!jobs.length) return;
     setSaving(true); setSaveMsg("Saving to database…");

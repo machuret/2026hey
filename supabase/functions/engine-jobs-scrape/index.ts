@@ -241,60 +241,52 @@ serve(async (req: Request) => {
   const actorSlug = actorId.replaceAll("/", "~");
   const input = buildActorInput(src, { searchTerm, location, country, maxResults, dateRange, workType });
 
+  // Actor-side timeout (Apify will kill the run if it exceeds this)
+  const actorTimeoutSecs = 150;
+
   try {
-    // 1. Start the Apify actor run
-    const startRes = await fetch(
-      `https://api.apify.com/v2/acts/${actorSlug}/runs?token=${APIFY_API_KEY}`,
+    // Single call: start run, wait for completion, return dataset items
+    // Apify enforces `timeout` server-side → no orphan runs racking up cost
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/${actorSlug}/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=${actorTimeoutSecs}&clean=true&limit=${maxResults}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
-        signal: AbortSignal.timeout(15000),
+        // Client-side timeout: slightly larger than actor timeout to let Apify respond
+        signal: AbortSignal.timeout((actorTimeoutSecs + 10) * 1000),
       },
     );
 
-    if (!startRes.ok) {
-      const err = await startRes.text();
-      return json({ error: `Apify start failed: ${err.slice(0, 300)}` }, 502);
+    // Cost tracking: Apify returns usage in response headers (works for all sources)
+    const costUsd = Number(res.headers.get("x-apify-usage-total-usd") ?? 0);
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      return json({ error: `Apify run failed [${res.status}]: ${err.slice(0, 300)}` }, 502);
     }
 
-    const { data: run } = await startRes.json();
-    const runId = run?.id;
-    if (!runId) return json({ error: "No run ID returned from Apify" }, 502);
+    const items = await res.json().catch(() => []);
 
-    // 2. Poll until finished (max 120s)
-    const pollStart = Date.now();
-    let status = "RUNNING";
-    let costUsd = 0;
-    while (status === "RUNNING" || status === "READY") {
-      if (Date.now() - pollStart > 120_000) return json({ error: "Apify run timed out (120s)" }, 504);
-      await new Promise((r) => setTimeout(r, 3000));
-      const statusRes = await fetch(
-        `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_KEY}`,
-        { signal: AbortSignal.timeout(10000) },
-      );
-      const { data: runData } = await statusRes.json();
-      status = runData?.status ?? "FAILED";
-      if (runData?.usageTotalUsd) costUsd = Number(runData.usageTotalUsd);
-    }
-
-    if (status !== "SUCCEEDED") return json({ error: `Apify run ended with status: ${status}` }, 502);
-
-    // 3. Fetch dataset items
-    const datasetRes = await fetch(
-      `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}&limit=${maxResults}&clean=true`,
-      { signal: AbortSignal.timeout(15000) },
-    );
-    const items = await datasetRes.json();
-
-    // 4. Normalize to unified job shape
+    // Normalize to unified job shape
     const normalize = NORMALIZERS[src];
-    const jobs = (Array.isArray(items) ? items : [])
-      .map((item: Record<string, unknown>) => normalize(item, country))
-      .filter((j) => j.source_id && j.job_title);
+    const rawItems = Array.isArray(items) ? items : [];
+    const normalized = rawItems.map((item: Record<string, unknown>) => normalize(item, country));
+    const jobs = normalized.filter((j) => j.source_id && j.job_title);
+    const skipped = normalized.length - jobs.length;
 
-    return json({ success: true, count: jobs.length, jobs, costUsd });
+    return json({
+      success: true,
+      count: jobs.length,
+      skipped,
+      rawCount: rawItems.length,
+      jobs,
+      costUsd,
+    });
   } catch (err) {
-    return json({ error: `Scrape failed: ${String(err)}` }, 500);
+    const msg = err instanceof Error && err.name === "TimeoutError"
+      ? `Scrape timed out after ${actorTimeoutSecs + 10}s`
+      : `Scrape failed: ${err instanceof Error ? err.message : String(err)}`;
+    return json({ error: msg }, 504);
   }
 });

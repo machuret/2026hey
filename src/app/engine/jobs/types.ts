@@ -85,6 +85,16 @@ export type JobLead = {
   li_industry: string | null;
   li_hq_location: string | null;
   li_enriched_at: string | null;
+  // Pipeline automation — retry + failure tracking
+  ai_attempts: number;
+  dm_attempts: number;
+  li_attempts: number;
+  ai_failure_reason: string | null;
+  dm_failure_reason: string | null;
+  li_failure_reason: string | null;
+  last_error: string | null;
+  next_retry_at: string | null;
+  total_cost_usd: number;
   // Meta
   status: JobStatus;
   search_query: string | null;

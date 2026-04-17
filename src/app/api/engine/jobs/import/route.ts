@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       work_type:         j.work_type ? String(j.work_type) : null,
       work_arrangement:  j.work_arrangement ? String(j.work_arrangement) : null,
       job_category:      j.job_category ? String(j.job_category) : null,
-      description:       j.description ? String(j.description) : null,
+      description:       j.description ? String(j.description).slice(0, 10_000) : null,
       emails:            Array.isArray(j.emails) ? j.emails : [],
       phone_numbers:     Array.isArray(j.phone_numbers) ? j.phone_numbers : [],
       recruiter_name:    j.recruiter_name ? String(j.recruiter_name) : null,
@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
       success: true,
       imported: data?.length ?? 0,
       skipped,
+      // Return inserted rows so client can replace temp UUIDs with real DB IDs
+      inserted: data ?? [],
     });
   } catch (err: unknown) {
     return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
