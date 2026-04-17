@@ -1,6 +1,7 @@
 "use client";
 
 import StagePage from "../components/StagePage";
+import { EnrichedActions } from "../components/StageActions";
 import { REVIEW_COLUMNS } from "../tableColumns";
 
 export default function ReviewPage() {
@@ -10,6 +11,9 @@ export default function ReviewPage() {
       title="Review — Final Check Before CRM"
       description="Human approval step. Review the AI pitch angle and decision maker info, then push to CRM."
       columns={REVIEW_COLUMNS}
+      bulkActions={(selected, jobs, refresh) => (
+        <EnrichedActions selected={selected} jobs={jobs} refresh={refresh} />
+      )}
       emptyMessage="Nothing to review. Enrich jobs first."
     />
   );

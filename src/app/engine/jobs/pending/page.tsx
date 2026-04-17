@@ -1,6 +1,7 @@
 "use client";
 
 import StagePage from "../components/StagePage";
+import { PendingActions } from "../components/StageActions";
 import { PENDING_COLUMNS } from "../tableColumns";
 
 export default function PendingPage() {
@@ -10,6 +11,9 @@ export default function PendingPage() {
       title="Pending — Awaiting AI Analysis"
       description="New scraped jobs. Next step: run AI analysis to score relevance and identify internal hirings."
       columns={PENDING_COLUMNS}
+      bulkActions={(selected, jobs, refresh) => (
+        <PendingActions selected={selected} jobs={jobs} refresh={refresh} />
+      )}
       emptyMessage="No pending jobs. Scrape new jobs to get started."
     />
   );

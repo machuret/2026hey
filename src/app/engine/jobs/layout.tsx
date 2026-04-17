@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import AutoPilotV2 from "./components/AutoPilotV2";
 
 type StageLink = {
   href: string;
@@ -44,6 +45,7 @@ export default function JobsLayout({ children }: { children: React.ReactNode }) 
               Scrape → Qualify → Find DM → Review → Push to CRM
             </p>
           </div>
+          <AutoPilotV2 />
         </div>
 
         {/* Stage nav */}
