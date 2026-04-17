@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Sparkles, Users, Send, RotateCcw, Loader2, Trash2 } from "lucide-react";
 import type { JobLead } from "../types";
 import { useEngineAction, type EngineActionResult } from "@/hooks/useEngineAction";
@@ -253,6 +254,178 @@ export function EnrichedActions({ selected, jobs, refresh }: {
       <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
 
       <DeleteButton selected={selected} refresh={refresh} stageLabel="enriched" />
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Simplified 3-tab actions (Scraped / Ready / Sent)
+// ══════════════════════════════════════════════════════════════════════════
+
+const ENRICH_MAX = 20; // limited by the smaller of analyze(50)/find-dm(20)
+
+/**
+ * ScrapedActions — unified "Enrich" bulk action.
+ *
+ * Partitions the selection client-side into:
+ *   • pending jobs    → POST /analyze  (OpenAI)
+ *   • qualified jobs  → POST /find-dm  (Apollo)
+ *   • stuck/dead-end  → skipped with warning
+ *
+ * Runs both stages sequentially. Shows combined summary.
+ */
+export function ScrapedActions({ selected, jobs, refresh }: {
+  selected: Set<string>; jobs: JobLead[]; refresh: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [msg,     setMsg]     = useState("");
+
+  const selectedRows = jobs.filter((j) => selected.has(j.id));
+  const pendingIds   = selectedRows.filter((j) => !j.ai_enriched_at).map((j) => j.id);
+  const qualifiedIds = selectedRows.filter((j) =>
+       j.ai_enriched_at
+    && !j.dm_name
+    && (j.ai_relevance_score ?? 0) >= 6
+    && j.ai_poster_type === "internal"
+    && (j.dm_attempts ?? 0) < 3,
+  ).map((j) => j.id);
+
+  const runEnrich = async (useAll: boolean) => {
+    const rows = useAll ? jobs : selectedRows;
+    const pIds = rows.filter((j) => !j.ai_enriched_at).map((j) => j.id).slice(0, ANALYZE_MAX);
+    const qIds = rows.filter((j) =>
+         j.ai_enriched_at
+      && !j.dm_name
+      && (j.ai_relevance_score ?? 0) >= 6
+      && j.ai_poster_type === "internal"
+      && (j.dm_attempts ?? 0) < 3,
+    ).map((j) => j.id).slice(0, FIND_DM_MAX);
+
+    if (pIds.length === 0 && qIds.length === 0) {
+      setMsg("Nothing to enrich in the selection");
+      return;
+    }
+
+    setLoading(true);
+    setMsg("");
+    const parts: string[] = [];
+    let costUsd = 0;
+
+    // ── Stage 1: Analyze (if any pending) ──────────────────────────────
+    if (pIds.length > 0) {
+      try {
+        const res  = await fetch("/api/engine/jobs/analyze", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ jobIds: pIds }),
+          signal:  AbortSignal.timeout(295_000),
+        });
+        const data = await res.json() as EngineActionResult;
+        if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
+        parts.push(`analyze ${data.successes ?? 0}/${data.processed ?? 0}`);
+        costUsd += Number(data.costUsd ?? 0);
+      } catch (e) {
+        setLoading(false);
+        setMsg(`⚠ Analyze failed: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
+    }
+
+    // ── Stage 2: Find DM (pre-existing qualified) ──────────────────────
+    // Note: newly-qualified jobs (from stage 1) are NOT automatically DM'd
+    // here — the user clicks Enrich again on the refreshed list. This keeps
+    // the flow predictable + honors the per-stage batch caps.
+    if (qIds.length > 0) {
+      try {
+        const res  = await fetch("/api/engine/jobs/find-dm", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ jobIds: qIds }),
+          signal:  AbortSignal.timeout(295_000),
+        });
+        const data = await res.json() as EngineActionResult;
+        if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
+        parts.push(`DM ${data.dm_found ?? 0}/${data.processed ?? 0}`);
+        costUsd += Number(data.costUsd ?? 0);
+      } catch (e) {
+        setLoading(false);
+        setMsg(`⚠ Find DM failed: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
+    }
+
+    setLoading(false);
+    setMsg(`✓ ${parts.join(" · ")}${costUsd > 0 ? ` · $${costUsd.toFixed(4)}` : ""}`);
+    refresh();
+  };
+
+  const selectedCount = pendingIds.length + qualifiedIds.length;
+  const allPendingCount   = jobs.filter((j) => !j.ai_enriched_at).length;
+  const allQualifiedCount = jobs.filter((j) =>
+       j.ai_enriched_at && !j.dm_name
+    && (j.ai_relevance_score ?? 0) >= 6 && j.ai_poster_type === "internal"
+    && (j.dm_attempts ?? 0) < 3,
+  ).length;
+  const allCount = Math.min(allPendingCount, ANALYZE_MAX) + Math.min(allQualifiedCount, FIND_DM_MAX);
+
+  return (
+    <>
+      <ActionButton
+        onClick={() => void runEnrich(false)}
+        disabled={selectedCount === 0}
+        loading={loading}
+        icon={Sparkles}
+        label={`Enrich Selected (${Math.min(selectedCount, ENRICH_MAX * 2)})`}
+        color="indigo"
+      />
+      <ActionButton
+        onClick={() => void runEnrich(true)}
+        disabled={allCount === 0}
+        loading={loading}
+        icon={Sparkles}
+        label={`Enrich All (${allCount})`}
+        color="blue"
+      />
+      {(allPendingCount > ANALYZE_MAX || allQualifiedCount > FIND_DM_MAX) && (
+        <span className="text-xs text-amber-400">
+          ⓘ First {ANALYZE_MAX} pending + {FIND_DM_MAX} qualified per batch — use AutoPilot to process all.
+        </span>
+      )}
+      <MsgPill msg={msg} />
+      <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+      <DeleteButton selected={selected} refresh={refresh} stageLabel="scraped" />
+    </>
+  );
+}
+
+/**
+ * ReadyActions — the "send" tab. SmartLead push is primary. CRM as secondary.
+ */
+export function ReadyActions({ selected, jobs, refresh }: {
+  selected: Set<string>; jobs: JobLead[]; refresh: () => void;
+}) {
+  const push = useAction("push-to-crm", refresh);
+  const ids  = Array.from(selected);
+
+  return (
+    <>
+      <SmartLeadActions selected={selected} jobs={jobs} refresh={refresh} />
+
+      <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+
+      <ActionButton
+        onClick={() => push.run(ids)}
+        disabled={ids.length === 0}
+        loading={push.loading}
+        icon={Send}
+        label={`Push to CRM (${ids.length})`}
+        color="emerald"
+      />
+      <MsgPill msg={push.msg} />
+
+      <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+
+      <DeleteButton selected={selected} refresh={refresh} stageLabel="ready" />
     </>
   );
 }

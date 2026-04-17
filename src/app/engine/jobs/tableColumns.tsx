@@ -170,6 +170,28 @@ export const SCRAPE_RESULTS_COLUMNS: TableColumn[] = [
   { key: "listed",   header: "Listed",    render: listedAtCell },
 ];
 
+/** Scraped — unified view across pending / qualified / stuck / dead_end.
+ *  Shows a "stage" pill so user understands where each row sits internally. */
+export const SCRAPED_COLUMNS: TableColumn[] = [
+  { key: "company",  header: "Company",  render: companyCell },
+  { key: "title",    header: "Job Title", render: titleCell },
+  { key: "stage",    header: "Stage",    width: "140px", render: (j) => {
+    // Compute the stage pill from fields (mirrors computeStage)
+    const hasDm = !!j.dm_name && (!!j.dm_email || !!j.dm_linkedin_url);
+    const analysed = !!j.ai_enriched_at;
+    const qualified = analysed && (j.ai_relevance_score ?? 0) >= 6 && j.ai_poster_type === "internal";
+    const stuck = analysed && !hasDm && (j.dm_attempts ?? 0) >= 3;
+    let label = "Pending", cls = "bg-gray-800 text-gray-300";
+    if (stuck)            { label = "Stuck — no DM"; cls = "bg-orange-900/40 text-orange-300"; }
+    else if (qualified)   { label = "Qualified";     cls = "bg-indigo-900/40 text-indigo-300"; }
+    else if (analysed)    { label = "Not relevant";  cls = "bg-gray-800 text-gray-500"; }
+    return <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
+  } },
+  { key: "ai_score", header: "Score",    render: aiScoreCell },
+  { key: "location", header: "Location", render: locationCell },
+  { key: "source",   header: "Source",   render: sourceCell },
+];
+
 /** Pending — raw scraped jobs, "should we enrich this?" */
 export const PENDING_COLUMNS: TableColumn[] = [
   { key: "company",  header: "Company",  render: companyCell },

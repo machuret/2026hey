@@ -73,6 +73,29 @@ export async function GET(req: NextRequest) {
         case "dismissed":
           query = query.in("status", ["dismissed", "recruiter_dismissed"]);
           break;
+        // ── Simplified 3-tab compound stages ────────────────────────────
+        case "scraped":
+          // Everything NOT yet "ready" (has DM + contact) and NOT terminal.
+          // Covers pending, qualified, dead_end, stuck_no_dm — the whole
+          // "not ready yet" bucket for a single-tab user view.
+          //
+          // Predicate: NOT (dm_name IS NOT NULL AND (dm_email IS NOT NULL OR dm_linkedin_url IS NOT NULL))
+          //         =  dm_name IS NULL OR (dm_email IS NULL AND dm_linkedin_url IS NULL)
+          query = query
+            .or("dm_name.is.null,and(dm_email.is.null,dm_linkedin_url.is.null)")
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
+          break;
+        case "ready":
+          // Alias of "enriched" — ready to send.
+          query = query
+            .not("dm_name", "is", null)
+            .or("dm_email.not.is.null,dm_linkedin_url.not.is.null")
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
+          break;
+        case "sent":
+          // Everything terminal-sent (CRM or SmartLead).
+          query = query.in("status", ["pushed_to_crm", "pushed_to_smartlead"]);
+          break;
       }
     }
 
