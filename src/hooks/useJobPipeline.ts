@@ -292,13 +292,14 @@ export function useJobList() {
   const [listError, setListError] = useState("");
 
   const fetchJobs = useCallback(async (filters?: {
-    status?: string; source?: string; country?: string; search?: string;
+    status?: string; stage?: string; source?: string; country?: string; search?: string;
   }) => {
     setLoading(true);
     setListError("");
     try {
       const params = new URLSearchParams();
       if (filters?.status)  params.set("status", filters.status);
+      if (filters?.stage)   params.set("stage",  filters.stage);
       if (filters?.source)  params.set("source", filters.source);
       if (filters?.country) params.set("country", filters.country);
       if (filters?.search)  params.set("search", filters.search);
