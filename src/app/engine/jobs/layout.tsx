@@ -20,7 +20,8 @@ const STAGES: StageLink[] = [
   { href: "/engine/jobs/enriched",  label: "4. Enriched",  stageKey: "enriched" },
   { href: "/engine/jobs/stuck",     label: "Stuck",        stageKey: "stuck_no_dm" },
   { href: "/engine/jobs/review",    label: "5. Review",    stageKey: "enriched" }, // ready subset
-  { href: "/engine/jobs/crm",       label: "6. CRM",       stageKey: "pushed" },
+  { href: "/engine/jobs/crm",         label: "6. CRM",        stageKey: "pushed" },
+  { href: "/engine/jobs/smartleaded", label: "7. SmartLead",  stageKey: "smartleaded" },
 ];
 
 export default function JobsLayout({ children }: { children: React.ReactNode }) {

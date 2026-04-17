@@ -227,3 +227,28 @@ export const CRM_COLUMNS: TableColumn[] = [
   { key: "status",   header: "Status",         render: statusCell },
   { key: "pushed",   header: "Pushed",         render: (j) => <span className="text-xs text-gray-400">{new Date(j.updated_at).toLocaleDateString()}</span> },
 ];
+
+/** SmartLead — archive of leads pushed to a SmartLead campaign. */
+export const SMARTLEAD_COLUMNS: TableColumn[] = [
+  { key: "company",  header: "Company",        render: companyCell },
+  { key: "dm_name",  header: "Decision Maker", render: dmNameCell },
+  { key: "dm_email", header: "Email",          render: dmEmailCell },
+  {
+    key: "campaign", header: "Campaign",
+    render: (j) => (
+      <span className="text-xs text-purple-300 truncate max-w-[180px] block">
+        {j.smartlead_campaign_name || j.smartlead_campaign_id || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "pushed_at", header: "Pushed",
+    render: (j) => (
+      <span className="text-xs text-gray-400">
+        {j.smartlead_pushed_at
+          ? new Date(j.smartlead_pushed_at).toLocaleDateString()
+          : "—"}
+      </span>
+    ),
+  },
+];

@@ -1,115 +1,76 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+// ═══════════════════════════════════════════════════════════════════════════
+// SmartLeadActions — campaign picker + "Push to SmartLead" bulk action.
+//
+// Uses:
+//   - useSmartLeadCampaigns() — loads campaigns from /api/engine/smartlead
+//   - useEngineAction()       — generic POST action with loading/error/msg state
+//   - jobToSmartLead helpers  — consistent email/phone selection (same as API)
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { useMemo, useState } from "react";
 import { Loader2, Send, RefreshCw } from "lucide-react";
 import type { JobLead } from "../types";
-import { emitPipelineRefresh } from "../pipelineEvents";
+import { useSmartLeadCampaigns } from "@/hooks/useSmartLeadCampaigns";
+import { useEngineAction } from "@/hooks/useEngineAction";
+import { bestEmail } from "@/lib/smartlead";
 
-type Campaign = {
-  id: number | string;
-  name: string;
-  status?: string;
-};
-
-type PushResult = {
-  success: boolean;
-  uploaded?: number;
-  duplicates?: number;
-  invalid?: number;
-  skipped_no_email?: number;
-  errors?: string[];
-  error?: string;
-};
-
-export default function SmartLeadActions({
-  selected, jobs, refresh,
-}: {
+type Props = {
   selected: Set<string>;
-  jobs: JobLead[];
-  refresh: () => void;
-}) {
-  const [campaigns, setCampaigns]     = useState<Campaign[]>([]);
-  const [campaignId, setCampaignId]   = useState<string>("");
-  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
-  const [campaignsError, setCampaignsError]     = useState("");
+  jobs:     JobLead[];
+  refresh:  () => void;
+};
 
-  const [pushing, setPushing] = useState(false);
-  const [msg, setMsg]         = useState("");
+export default function SmartLeadActions({ selected, jobs, refresh }: Props) {
+  const { campaigns, loading: loadingCampaigns, error: campaignsError, reload } = useSmartLeadCampaigns();
+  const [campaignId, setCampaignId] = useState<string>("");
 
-  const selectedIds = Array.from(selected);
+  // Keep the selected campaign pinned to a valid id once campaigns load.
+  const effectiveCampaignId = useMemo(() => {
+    if (campaignId && campaigns.some((c) => String(c.id) === campaignId)) return campaignId;
+    return campaigns[0] ? String(campaigns[0].id) : "";
+  }, [campaignId, campaigns]);
 
-  // Preview: how many of the selected jobs actually have an email
-  const selectedWithEmail = jobs
-    .filter((j) => selected.has(j.id))
-    .filter((j) => j.dm_email || (j.emails && j.emails.some((e) => e && e.includes("@"))))
-    .length;
+  // Count selected jobs that have a valid email.
+  const selectedIds = useMemo(() => Array.from(selected), [selected]);
+  const selectedWithEmail = useMemo(
+    () => jobs.filter((j) => selected.has(j.id)).filter((j) => bestEmail(j) !== null).length,
+    [jobs, selected],
+  );
 
-  const loadCampaigns = useCallback(async () => {
-    setLoadingCampaigns(true);
-    setCampaignsError("");
-    try {
-      const res = await fetch("/api/engine/smartlead?action=campaigns", {
-        signal: AbortSignal.timeout(15_000),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setCampaignsError(data.error ?? "Failed to load campaigns");
-        return;
-      }
-      const list = (data.campaigns ?? []) as Campaign[];
-      setCampaigns(list);
-      if (list.length > 0 && !campaignId) setCampaignId(String(list[0].id));
-    } catch (e) {
-      setCampaignsError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoadingCampaigns(false);
-    }
-  }, [campaignId]);
-
-  useEffect(() => { loadCampaigns(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
-
-  const push = async () => {
-    if (!selectedIds.length) { setMsg("Select jobs first"); return; }
-    if (!campaignId)         { setMsg("Pick a campaign");   return; }
-
-    const campaignName = campaigns.find((c) => String(c.id) === campaignId)?.name;
-    setPushing(true);
-    setMsg("");
-    try {
-      const res = await fetch("/api/engine/smartlead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobIds: selectedIds, campaignId, campaignName }),
-        signal: AbortSignal.timeout(285_000),
-      });
-      const data = (await res.json()) as PushResult;
-      if (!res.ok || data.error) {
-        setMsg(`⚠ ${data.error ?? `HTTP ${res.status}`}`);
-        return;
-      }
+  const push = useEngineAction({
+    url: "/api/engine/smartlead",
+    timeoutMs: 285_000,
+    formatSuccess: (data) => {
       const parts = [
         `✓ Pushed ${data.uploaded ?? 0} to SmartLead`,
         data.duplicates ? `${data.duplicates} dupes` : "",
         data.invalid ? `${data.invalid} invalid` : "",
         data.skipped_no_email ? `${data.skipped_no_email} no-email skipped` : "",
+        data.partial_success ? "(partial — some batches failed)" : "",
+        data.db_sync_failed ? "⚠ DB out of sync" : "",
       ].filter(Boolean);
-      setMsg(parts.join(" · "));
-      refresh();
-      emitPipelineRefresh();
-    } catch (e) {
-      setMsg(`⚠ ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setPushing(false);
-    }
+      return parts.join(" · ");
+    },
+    onSuccess: () => refresh(),
+  });
+
+  const onPush = () => {
+    if (!selectedIds.length) { push.setMsg("Select jobs first"); return; }
+    if (!effectiveCampaignId) { push.setMsg("Pick a campaign"); return; }
+    const campaignName = campaigns.find((c) => String(c.id) === effectiveCampaignId)?.name;
+    void push.run({ jobIds: selectedIds, campaignId: effectiveCampaignId, campaignName });
   };
 
-  const isError = msg.startsWith("⚠");
+  const isError = push.msg.startsWith("⚠") || push.msg.startsWith("⛔");
+  const overflow = selectedIds.length - selectedWithEmail;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex items-center gap-2">
         <select
-          value={campaignId}
+          value={effectiveCampaignId}
           onChange={(e) => setCampaignId(e.target.value)}
           disabled={loadingCampaigns || campaigns.length === 0}
           className="rounded-lg bg-gray-900 border border-gray-700 px-3 py-2 text-sm text-gray-200 disabled:opacity-50 min-w-[200px]"
@@ -126,7 +87,7 @@ export default function SmartLeadActions({
           ))}
         </select>
         <button
-          onClick={loadCampaigns}
+          onClick={() => void reload()}
           disabled={loadingCampaigns}
           title="Reload campaigns"
           className="rounded-lg bg-gray-800 hover:bg-gray-700 p-2 text-gray-300 disabled:opacity-50"
@@ -138,26 +99,25 @@ export default function SmartLeadActions({
       </div>
 
       <button
-        onClick={push}
-        disabled={pushing || selectedIds.length === 0 || !campaignId}
+        onClick={onPush}
+        disabled={push.loading || selectedIds.length === 0 || !effectiveCampaignId}
         className="flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        Push to SmartLead ({selectedWithEmail}
-        {selectedWithEmail !== selectedIds.length ? `/${selectedIds.length}` : ""})
+        {push.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        Push to SmartLead ({selectedWithEmail}{overflow > 0 ? `/${selectedIds.length}` : ""})
       </button>
 
       {campaignsError && (
         <span className="text-xs text-red-400">⚠ {campaignsError}</span>
       )}
-      {msg && (
+      {push.msg && (
         <span className={`text-xs ${isError ? "text-red-400" : "text-emerald-400"}`}>
-          {msg}
+          {push.msg}
         </span>
       )}
-      {selectedIds.length > 0 && selectedWithEmail < selectedIds.length && !msg && (
+      {overflow > 0 && !push.msg && (
         <span className="text-xs text-amber-400">
-          ⓘ {selectedIds.length - selectedWithEmail} selected have no email and will be skipped
+          ⓘ {overflow} selected have no email and will be skipped
         </span>
       )}
     </div>

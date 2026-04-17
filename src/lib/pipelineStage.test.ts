@@ -25,6 +25,10 @@ describe("computeStage — terminal states take precedence", () => {
     expect(computeStage(job({ status: "pushed_to_crm", dm_name: "X", dm_email: "x@y.com" }))).toBe("pushed");
   });
 
+  it("pushed_to_smartlead → smartleaded (regardless of other fields)", () => {
+    expect(computeStage(job({ status: "pushed_to_smartlead", dm_name: "X", dm_email: "x@y.com" }))).toBe("smartleaded");
+  });
+
   it("dismissed → dismissed", () => {
     expect(computeStage(job({ status: "dismissed" }))).toBe("dismissed");
   });
@@ -155,8 +159,16 @@ describe("computeStage — defensive behavior", () => {
 });
 
 describe("VALID_TRANSITIONS — graph shape", () => {
-  it("pushed is terminal (no outgoing edges)", () => {
-    expect(VALID_TRANSITIONS.pushed).toEqual([]);
+  it("pushed can still go to smartleaded (different channel)", () => {
+    expect(VALID_TRANSITIONS.pushed).toContain("smartleaded");
+  });
+
+  it("smartleaded is terminal (no outgoing edges)", () => {
+    expect(VALID_TRANSITIONS.smartleaded).toEqual([]);
+  });
+
+  it("enriched can go to smartleaded directly", () => {
+    expect(VALID_TRANSITIONS.enriched).toContain("smartleaded");
   });
 
   it("dismissed is terminal", () => {

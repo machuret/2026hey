@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Sparkles, Users, Send, RotateCcw, Loader2 } from "lucide-react";
 import type { JobLead } from "../types";
-import { emitPipelineRefresh } from "../pipelineEvents";
+import { useEngineAction, type EngineActionResult } from "@/hooks/useEngineAction";
 import SmartLeadActions from "./SmartLeadActions";
 
 type Endpoint = "analyze" | "find-dm" | "push-to-crm" | "retry-stuck";
@@ -38,53 +37,36 @@ function ActionButton({
   );
 }
 
-/** Hook for posting to an action endpoint and surfacing result. */
+/** Format a job-endpoint response into a short user-visible summary. */
+function formatEndpointSummary(endpoint: Endpoint, data: EngineActionResult): string {
+  let summary = "";
+  if (endpoint === "analyze") {
+    summary = `✓ Analyzed ${data.successes ?? 0}/${data.processed ?? 0}${data.failures ? ` · ${data.failures} failed` : ""}`;
+  } else if (endpoint === "find-dm") {
+    summary = `✓ DM found: ${data.dm_found ?? 0}/${data.processed ?? 0}${data.dm_not_found ? ` · ${data.dm_not_found} not found` : ""}`;
+  } else if (endpoint === "push-to-crm") {
+    summary = `✓ Pushed ${data.imported ?? 0} leads${data.skipped ? ` · ${data.skipped} dupes skipped` : ""}`;
+  } else if (endpoint === "retry-stuck") {
+    summary = `✓ Reset ${data.reset ?? 0} stuck jobs for retry`;
+  }
+  if (data.costUsd) summary += ` · $${Number(data.costUsd).toFixed(4)}`;
+  return summary || "✓ Done";
+}
+
+/** Hook for posting to an action endpoint with friendly summary + refresh. */
 function useAction(endpoint: Endpoint, refresh: () => void) {
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  const action = useEngineAction({
+    url: `/api/engine/jobs/${endpoint}`,
+    formatSuccess: (data) => formatEndpointSummary(endpoint, data),
+    onSuccess: refresh,
+  });
 
-  const run = async (jobIds: string[]) => {
-    if (!jobIds.length) { setMsg("Select jobs first"); return; }
-    setLoading(true);
-    setMsg("");
-    try {
-      const res = await fetch(`/api/engine/jobs/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobIds }),
-        signal: AbortSignal.timeout(295_000),
-      });
-      const data = await res.json();
-
-      if (res.status === 429) {
-        setMsg(`⛔ Budget hit: ${data.reason ?? data.error}`);
-      } else if (!data.success) {
-        setMsg(`⚠ ${data.error ?? "Failed"}`);
-      } else {
-        // Format summary based on endpoint
-        let summary = "";
-        if (endpoint === "analyze") {
-          summary = `✓ Analyzed ${data.successes}/${data.processed}${data.failures ? ` · ${data.failures} failed` : ""}`;
-        } else if (endpoint === "find-dm") {
-          summary = `✓ DM found: ${data.dm_found}/${data.processed}${data.dm_not_found ? ` · ${data.dm_not_found} not found` : ""}`;
-        } else if (endpoint === "push-to-crm") {
-          summary = `✓ Pushed ${data.imported ?? 0} leads${data.skipped ? ` · ${data.skipped} dupes skipped` : ""}`;
-        } else if (endpoint === "retry-stuck") {
-          summary = `✓ Reset ${data.reset} stuck jobs for retry`;
-        }
-        if (data.costUsd) summary += ` · $${Number(data.costUsd).toFixed(4)}`;
-        setMsg(summary);
-        refresh();
-        emitPipelineRefresh();   // notify other pages + nav badges
-      }
-    } catch (e) {
-      setMsg(`⚠ ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
-    }
+  const run = (jobIds: string[]) => {
+    if (!jobIds.length) { action.setMsg("Select jobs first"); return; }
+    void action.run({ jobIds });
   };
 
-  return { run, loading, msg };
+  return { run, loading: action.loading, msg: action.msg };
 }
 
 /** Status message pill */
