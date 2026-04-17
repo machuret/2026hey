@@ -8,6 +8,7 @@ export type JobStatus =
   | "dm_enriched"
   | "fully_enriched"
   | "pushed_to_crm"
+  | "pushed_to_smartlead"
   | "dismissed"
   | "recruiter_dismissed";
 
@@ -95,6 +96,12 @@ export type JobLead = {
   last_error: string | null;
   next_retry_at: string | null;
   total_cost_usd: number;
+  // SmartLead
+  smartlead_campaign_id: string | null;
+  smartlead_campaign_name: string | null;
+  smartlead_lead_id: string | null;
+  smartlead_pushed_at: string | null;
+  smartlead_error: string | null;
   // Meta
   status: JobStatus;
   search_query: string | null;
@@ -169,6 +176,7 @@ export const STATUS_COLOURS: Record<JobStatus, string> = {
   dm_enriched:          "bg-emerald-900/30 text-emerald-300 border-emerald-800/50",
   fully_enriched:       "bg-indigo-900/30 text-indigo-300 border-indigo-800/50",
   pushed_to_crm:        "bg-green-900/30 text-green-300 border-green-800/50",
+  pushed_to_smartlead:  "bg-purple-900/30 text-purple-300 border-purple-800/50",
   dismissed:            "bg-red-900/30 text-red-400 border-red-800/50",
   recruiter_dismissed:  "bg-orange-900/30 text-orange-400 border-orange-800/50",
 };
@@ -179,6 +187,7 @@ export const STATUS_LABELS: Record<JobStatus, string> = {
   dm_enriched:          "DM Found",
   fully_enriched:       "Fully Enriched",
   pushed_to_crm:        "In CRM",
+  pushed_to_smartlead:  "In SmartLead",
   dismissed:            "Dismissed",
   recruiter_dismissed:  "Agency Post",
 };

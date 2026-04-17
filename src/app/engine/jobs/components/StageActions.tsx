@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Users, Send, RotateCcw, Loader2 } from "lucide-react";
 import type { JobLead } from "../types";
 import { emitPipelineRefresh } from "../pipelineEvents";
+import SmartLeadActions from "./SmartLeadActions";
 
 type Endpoint = "analyze" | "find-dm" | "push-to-crm" | "retry-stuck";
 
@@ -225,6 +226,10 @@ export function EnrichedActions({ selected, jobs, refresh }: {
         color="emerald"
       />
       <MsgPill msg={push.msg} />
+
+      <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+
+      <SmartLeadActions selected={selected} jobs={jobs} refresh={refresh} />
     </>
   );
 }

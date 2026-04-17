@@ -378,6 +378,20 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# ── Per-function settings ──────────────────────────────────────────────────
+# Disable Supabase's gateway-level JWT check so the new sb_secret_* API key
+# format works. Each function does its own Authorization check against
+# SERVICE_ROLE_KEY, so this does NOT open them up to anon access.
+
+[functions.smartleads]
+verify_jwt = false
+
+[functions.engine-jobs-enrich]
+verify_jwt = false
+
+[functions.engine-jobs-scrape]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

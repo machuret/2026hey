@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         case "pending":
           query = query
             .is("ai_enriched_at", null)
-            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "qualified":
           query = query
@@ -42,30 +42,33 @@ export async function GET(req: NextRequest) {
             .eq("ai_poster_type", "internal")
             .is("dm_name", null)
             .lt("dm_attempts", 3)
-            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "dead_end":
           query = query
             .not("ai_enriched_at", "is", null)
             .is("dm_name", null)
             .or("ai_relevance_score.lt.6,ai_poster_type.neq.internal")
-            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "stuck_no_dm":
           query = query
             .not("ai_enriched_at", "is", null)
             .is("dm_name", null)
             .gte("dm_attempts", 3)
-            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "enriched":
           query = query
             .not("dm_name", "is", null)
             .or("dm_email.not.is.null,dm_linkedin_url.not.is.null")
-            .not("status", "in", "(pushed_to_crm,dismissed,recruiter_dismissed)");
+            .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "pushed":
           query = query.eq("status", "pushed_to_crm");
+          break;
+        case "smartleaded":
+          query = query.eq("status", "pushed_to_smartlead");
           break;
         case "dismissed":
           query = query.in("status", ["dismissed", "recruiter_dismissed"]);

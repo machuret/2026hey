@@ -14,6 +14,7 @@ export type PipelineStage =
   | "stuck_no_dm"  // Qualified but DM search exhausted (3 attempts)
   | "ready"        // Enriched and ready to push (alias of enriched in practice)
   | "pushed"       // pushed_to_crm
+  | "smartleaded"  // pushed_to_smartlead
   | "dismissed";   // dismissed or recruiter_dismissed
 
 export const AI_QUALIFIED_SCORE_THRESHOLD = 6;
@@ -27,6 +28,7 @@ export function computeStage(job: Pick<JobLead,
 > & { dm_attempts?: number }): PipelineStage {
   // Terminal states first
   if (job.status === "pushed_to_crm") return "pushed";
+  if (job.status === "pushed_to_smartlead") return "smartleaded";
   if (job.status === "dismissed" || job.status === "recruiter_dismissed") return "dismissed";
 
   // Has DM → enriched (ready to push)
@@ -53,9 +55,10 @@ export const VALID_TRANSITIONS: Record<PipelineStage, PipelineStage[]> = {
   qualified:   ["enriched", "stuck_no_dm", "dismissed"],
   dead_end:    ["dismissed"],                // auto-dismiss dead ends
   stuck_no_dm: ["enriched", "dismissed"],    // retry might succeed
-  enriched:    ["ready", "pushed", "dismissed"],
-  ready:       ["pushed", "dismissed"],
-  pushed:      [],                           // terminal
+  enriched:    ["ready", "pushed", "smartleaded", "dismissed"],
+  ready:       ["pushed", "smartleaded", "dismissed"],
+  pushed:      ["smartleaded"],              // CRM leads can still go to SmartLead
+  smartleaded: [],                           // terminal — owned by SmartLead now
   dismissed:   [],                           // terminal
 };
 
@@ -68,6 +71,7 @@ export const STAGE_LABELS: Record<PipelineStage, string> = {
   stuck_no_dm: "Stuck — No DM",
   ready:       "Ready",
   pushed:      "In CRM",
+  smartleaded: "In SmartLead",
   dismissed:   "Dismissed",
 };
 
@@ -79,6 +83,7 @@ export const STAGE_DESCRIPTIONS: Record<PipelineStage, string> = {
   stuck_no_dm: "AI approved but no DM found after 3 attempts",
   ready:       "Fully enriched, ready to push to CRM",
   pushed:      "Already in CRM",
+  smartleaded: "Pushed to a SmartLead cold-email campaign",
   dismissed:   "Dismissed manually or automatically",
 };
 

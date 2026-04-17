@@ -74,7 +74,7 @@ async function smartleadFetch(
 /** Ping: validate the API key works. SmartLead has no dedicated ping, so we
  *  hit /campaigns?limit=1 which is cheap and returns { ok:true } on success. */
 async function handlePing() {
-  const r = await smartleadFetch("/campaigns?limit=1", { method: "GET" });
+  const r = await smartleadFetch("/campaigns", { method: "GET" });
   if (!r.ok) {
     return json({
       success: false,
