@@ -135,17 +135,50 @@ describe("chunk", () => {
 });
 
 describe("jobToSmartLead", () => {
-  it("returns null when no valid email anywhere", () => {
+  // Minimal viable DM for mapping (overridable per test).
+  const withDm = (overrides: Partial<SmartLeadJobRow> = {}) => job({
+    dm_name: "Jane Doe",
+    dm_email: "jane@acme.com",
+    ...overrides,
+  });
+
+  it("returns null when dm_name is missing", () => {
     expect(jobToSmartLead(job())).toBe(null);
-    expect(jobToSmartLead(job({ dm_email: "bad", emails: ["also-bad"] }))).toBe(null);
+    expect(jobToSmartLead(job({ dm_name: "   ", dm_email: "a@b.com" }))).toBe(null);
+    // Even with a listing email, no DM = no lead.
+    expect(jobToSmartLead(job({ emails: ["hr@acme.com"] }))).toBe(null);
+  });
+
+  it("returns null when DM has no email AND no linkedin_url", () => {
+    expect(jobToSmartLead(job({ dm_name: "Jane Doe" }))).toBe(null);
+    expect(jobToSmartLead(job({
+      dm_name: "Jane Doe", dm_email: "not-an-email", dm_linkedin_url: null,
+    }))).toBe(null);
+  });
+
+  it("accepts DM with linkedin_url even if no email, as long as a listing email exists", () => {
+    const out = jobToSmartLead(job({
+      dm_name: "Jane Doe",
+      dm_email: null,
+      dm_linkedin_url: "https://linkedin.com/in/jane",
+      emails: ["careers@acme.com"],
+    }));
+    expect(out).not.toBeNull();
+    expect(out!.email).toBe("careers@acme.com");
+    expect(out!.linkedin_profile).toBe("https://linkedin.com/in/jane");
+  });
+
+  it("returns null when there is no email anywhere even if DM present", () => {
+    expect(jobToSmartLead(job({
+      dm_name: "Jane Doe",
+      dm_linkedin_url: "https://linkedin.com/in/jane",
+      dm_email: null,
+      emails: null,
+    }))).toBe(null);
   });
 
   it("uses dm_email and splits dm_name", () => {
-    const out = jobToSmartLead(job({
-      dm_name: "Jane Doe",
-      dm_email: "jane@acme.com",
-      company_name: "Acme",
-    }));
+    const out = jobToSmartLead(withDm({ company_name: "Acme" }));
     expect(out).not.toBeNull();
     expect(out!.email).toBe("jane@acme.com");
     expect(out!.first_name).toBe("Jane");
@@ -153,26 +186,17 @@ describe("jobToSmartLead", () => {
     expect(out!.company_name).toBe("Acme");
   });
 
-  it("falls back to recruiter name when dm_name missing", () => {
-    const out = jobToSmartLead(job({
-      recruiter_name: "Bob Recruiter",
-      dm_email: "jane@acme.com",
-    }));
-    expect(out!.first_name).toBe("Bob");
-  });
-
   it("prefers company_website, falls back to li_company_url", () => {
-    const a = jobToSmartLead(job({ dm_email: "a@b.com", company_website: "https://a.com", li_company_url: "https://b.com" }));
+    const a = jobToSmartLead(withDm({ company_website: "https://a.com", li_company_url: "https://b.com" }));
     expect(a!.website).toBe("https://a.com");
     expect(a!.company_url).toBe("https://a.com");
 
-    const b = jobToSmartLead(job({ dm_email: "a@b.com", company_website: null, li_company_url: "https://b.com" }));
+    const b = jobToSmartLead(withDm({ company_website: null, li_company_url: "https://b.com" }));
     expect(b!.website).toBe("https://b.com");
   });
 
   it("omits empty custom fields (keeps SmartLead UI tidy)", () => {
-    const out = jobToSmartLead(job({
-      dm_email: "a@b.com",
+    const out = jobToSmartLead(withDm({
       job_title: "CTO",
       job_url: "", // empty string should NOT appear
       salary: null,
@@ -183,16 +207,14 @@ describe("jobToSmartLead", () => {
   });
 
   it("numeric relevance_score survives (0 is not filtered)", () => {
-    const out = jobToSmartLead(job({
-      dm_email: "a@b.com",
+    const out = jobToSmartLead(withDm({
       ai_relevance_score: 0,
     }));
     expect(out!.custom_fields.relevance_score).toBe(0);
   });
 
   it("includes country and source in custom_fields", () => {
-    const out = jobToSmartLead(job({
-      dm_email: "a@b.com",
+    const out = jobToSmartLead(withDm({
       source: "seek",
       country: "AU",
     }));

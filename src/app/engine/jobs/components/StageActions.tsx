@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Users, Send, RotateCcw, Loader2 } from "lucide-react";
+import { Sparkles, Users, Send, RotateCcw, Loader2, Trash2 } from "lucide-react";
 import type { JobLead } from "../types";
 import { useEngineAction, type EngineActionResult } from "@/hooks/useEngineAction";
 import SmartLeadActions from "./SmartLeadActions";
@@ -69,6 +69,41 @@ function useAction(endpoint: Endpoint, refresh: () => void) {
   return { run, loading: action.loading, msg: action.msg };
 }
 
+// ── Shared Delete button ───────────────────────────────────────────────────
+// Hard-delete selected jobs. Refuses server-side if any are already pushed.
+function DeleteButton({ selected, refresh, stageLabel }: {
+  selected: Set<string>; refresh: () => void; stageLabel: string;
+}) {
+  const del = useEngineAction({
+    url:    "/api/engine/jobs",
+    method: "DELETE",
+    formatSuccess: (data) => `✓ Deleted ${data.deleted ?? 0} ${stageLabel} job${(data.deleted ?? 0) === 1 ? "" : "s"}`,
+    onSuccess: refresh,
+  });
+  const ids = Array.from(selected);
+
+  const onClick = () => {
+    if (ids.length === 0) { del.setMsg("Select jobs first"); return; }
+    const msg = `Permanently delete ${ids.length} ${stageLabel} job${ids.length === 1 ? "" : "s"}? This cannot be undone.`;
+    if (!window.confirm(msg)) return;
+    void del.run({ jobIds: ids });
+  };
+
+  return (
+    <>
+      <ActionButton
+        onClick={onClick}
+        disabled={ids.length === 0}
+        loading={del.loading}
+        icon={Trash2}
+        label={`Delete (${ids.length})`}
+        color="red"
+      />
+      <MsgPill msg={del.msg} />
+    </>
+  );
+}
+
 /** Status message pill */
 function MsgPill({ msg }: { msg: string }) {
   if (!msg) return null;
@@ -124,6 +159,8 @@ export function PendingActions({ selected, jobs, refresh }: {
       />
       <OverflowWarning total={allIds.length} cap={ANALYZE_MAX} />
       <MsgPill msg={action.msg} />
+      <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+      <DeleteButton selected={selected} refresh={refresh} stageLabel="pending" />
     </>
   );
 }
@@ -212,6 +249,10 @@ export function EnrichedActions({ selected, jobs, refresh }: {
       <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
 
       <SmartLeadActions selected={selected} jobs={jobs} refresh={refresh} />
+
+      <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+
+      <DeleteButton selected={selected} refresh={refresh} stageLabel="enriched" />
     </>
   );
 }

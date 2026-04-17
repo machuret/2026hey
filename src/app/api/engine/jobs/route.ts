@@ -93,3 +93,52 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
   }
 }
+
+// DELETE /api/engine/jobs — hard-delete jobs by id
+// Body: { jobIds: string[] }
+//
+// Refuses to delete jobs already pushed to CRM/SmartLead (audit integrity).
+// Related audit rows (engine_stage_transitions, engine_api_usage) are kept
+// for historical analysis — they reference job_id by string, not FK.
+export async function DELETE(req: NextRequest) {
+  const authErr = requireEngineAuth(req);
+  if (authErr) return authErr;
+
+  try {
+    const body = (await req.json().catch(() => ({}))) as { jobIds?: unknown };
+    const rawIds = Array.isArray(body.jobIds) ? body.jobIds : [];
+    const jobIds = rawIds.filter((x): x is string => typeof x === "string" && x.length > 0);
+
+    if (jobIds.length === 0) {
+      return NextResponse.json({ error: "jobIds array is required" }, { status: 400 });
+    }
+    if (jobIds.length > 500) {
+      return NextResponse.json({ error: "max 500 jobs per delete" }, { status: 400 });
+    }
+
+    const db = getEngineAdmin();
+
+    // Safety: refuse to delete jobs that are already pushed (preserves audit trail)
+    const { data: pushed, error: checkErr } = await db
+      .from("job_leads")
+      .select("id, status")
+      .in("id", jobIds)
+      .in("status", ["pushed_to_crm", "pushed_to_smartlead"]);
+    if (checkErr) throw checkErr;
+
+    if (pushed && pushed.length > 0) {
+      return NextResponse.json({
+        error: `Cannot delete ${pushed.length} job(s) already pushed to CRM/SmartLead — dismiss them instead`,
+        blocked_ids: pushed.map((p) => p.id),
+      }, { status: 409 });
+    }
+
+    const { data, error } = await db
+      .from("job_leads").delete().in("id", jobIds).select("id");
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, deleted: data?.length ?? 0 });
+  } catch (err) {
+    return NextResponse.json({ error: extractErrorMsg(err) }, { status: 500 });
+  }
+}

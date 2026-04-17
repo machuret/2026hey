@@ -188,12 +188,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "campaignId is required" }, { status: 400 });
     }
 
-    // Fetch eligible jobs only — rejects already-dismissed / already-smartleaded
+    // Fetch eligible jobs only — rejects already-dismissed / already-smartleaded.
+    //
+    // HARD DM REQUIREMENT: the query also enforces dm_name + (dm_email OR
+    // dm_linkedin_url). This mirrors the "enriched" stage definition and means
+    // a job without a Decision Maker can NEVER be pushed to SmartLead, even
+    // if the caller somehow selected one. Enforced at DB layer + mapper layer
+    // (jobToSmartLead) for defense-in-depth.
     const { data: jobsRaw, error: fetchErr } = await db
       .from("job_leads")
       .select("*")
       .in("id", jobIds)
-      .in("status", SMARTLEAD_PUSHABLE_STATUSES as unknown as string[]);
+      .in("status", SMARTLEAD_PUSHABLE_STATUSES as unknown as string[])
+      .not("dm_name", "is", null)
+      .or("dm_email.not.is.null,dm_linkedin_url.not.is.null");
 
     if (fetchErr) throw fetchErr;
     const jobs = (jobsRaw ?? []) as (SmartLeadJobRow & { status: string })[];

@@ -124,12 +124,26 @@ export function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-/** Map a job row → SmartLead lead. Returns null if the job lacks a valid email. */
+/** Map a job row → SmartLead lead.
+ *
+ *  Returns null if ANY of the following are true:
+ *    - No decision maker name (`dm_name` empty)
+ *    - No DM contact method (neither `dm_email` nor `dm_linkedin_url`)
+ *    - No valid email anywhere (DM email OR listing email)
+ *
+ *  Rationale: if we don't have a DM we have nothing useful to send — cold
+ *  emails without a named, contactable recipient are spam. Enforced here AND
+ *  at the API layer so both the DB query and the mapper must agree.
+ */
 export function jobToSmartLead(j: SmartLeadJobRow): SmartLeadLead | null {
+  // Hard DM requirement — mirrors the "enriched" stage definition.
+  if (!j.dm_name || !j.dm_name.trim()) return null;
+  if (!isValidEmail(j.dm_email) && !j.dm_linkedin_url) return null;
+
   const email = bestEmail(j);
   if (!email) return null;
 
-  const { first, last } = splitName(j.dm_name ?? j.recruiter_name);
+  const { first, last } = splitName(j.dm_name);
   const phone  = bestPhone(j);
   const site   = j.company_website || j.li_company_url;
 

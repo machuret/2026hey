@@ -21,8 +21,8 @@ export type EngineActionResult = Record<string, unknown> & {
 type Options = {
   /** Absolute URL or path under /api/engine */
   url: string;
-  /** HTTP method; defaults to POST */
-  method?: "POST" | "GET";
+  /** HTTP method; defaults to POST. DELETE supports JSON body (same shape as POST). */
+  method?: "POST" | "GET" | "DELETE";
   /** Timeout in ms; defaults to 295s (edge-fn max) */
   timeoutMs?: number;
   /** Callback that receives the parsed response and returns a user-visible summary */
@@ -48,10 +48,11 @@ export function useEngineAction({
     setLoading(true);
     setMsg("");
     try {
+      const hasBody = (method === "POST" || method === "DELETE") && body !== undefined;
       const res = await fetch(url, {
         method,
-        headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
-        body:    method === "POST" && body !== undefined ? JSON.stringify(body) : undefined,
+        headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+        body:    hasBody ? JSON.stringify(body) : undefined,
         signal:  AbortSignal.timeout(timeoutMs),
       });
 
