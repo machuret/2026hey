@@ -296,12 +296,14 @@ export function ScrapedActions({ selected, jobs, refresh }: {
    *            qualified from stage 1 PLUS pre-existing qualified get DM search)
    *
    * ── Why we chunk client-side ──────────────────────────────────────────
-   * Netlify/Vercel free-tier serverless functions time out at 10–26s.
-   * Calling /analyze with 5+ jobs risks exceeding that because the edge fn
-   * processes 3 OpenAI calls in parallel (each up to 45s). When the browser
-   * sees "Failed to fetch" it means the function was killed server-side
-   * before it could respond. Chunking to 3/5 jobs per request keeps each
-   * round-trip safely below the timeout.
+   * Vercel serverless function timeouts: 60s on Hobby, 300s on Pro (the
+   * route declares `maxDuration = 300`, capped to plan ceiling). The edge
+   * fn processes 3 OpenAI calls in parallel, each up to 45s, so a batch of
+   * 5 jobs can take 30-50s total and hit the Hobby ceiling when OpenAI is
+   * slow or there's a cold start. "Failed to fetch" in the browser is the
+   * TypeError when the server kills the connection before responding.
+   * Chunking to 3/5 jobs/request keeps each round-trip safely under 60s
+   * on any plan and also surfaces progress to the user.
    */
   const ANALYZE_CHUNK = 3;  // ~10-15s per request (3 parallel OpenAI calls)
   const FIND_DM_CHUNK = 5;  // Apollo is faster (~2-3s/job)
