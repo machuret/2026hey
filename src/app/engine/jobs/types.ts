@@ -12,7 +12,7 @@ export type JobStatus =
   | "dismissed"
   | "recruiter_dismissed";
 
-export type EnrichMethod = "ai" | "apollo" | "linkedin";
+export type EnrichMethod = "ai" | "apollo" | "linkedin" | "openai_search";
 
 export type JobLead = {
   id: string;

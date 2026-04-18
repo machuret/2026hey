@@ -9,7 +9,7 @@ import { checkBudget, logStageTransition, BudgetExceededError } from "@/lib/engi
 import { computeStage } from "@/lib/pipelineStage";
 import type { NextRequest } from "next/server";
 
-export type EnrichMethod = "ai" | "apollo" | "linkedin";
+export type EnrichMethod = "ai" | "apollo" | "linkedin" | "openai_search";
 
 /** Thrown when the underlying API (Apify/OpenAI) was unreachable — caller
  *  should NOT increment attempt counters, since it's a transient outage.

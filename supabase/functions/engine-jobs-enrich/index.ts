@@ -1,8 +1,10 @@
 // Edge Function: engine-jobs-enrich
-// 3-mode enrichment for job leads:
-//   method="ai"       — OpenAI analysis (company summary, hiring signal, relevance)
-//   method="apollo"   — Apollo 2-step DM finder (email + phone)
-//   method="linkedin" — LinkedIn company intel via Apify
+// 4-mode enrichment for job leads:
+//   method="ai"            — OpenAI analysis (company summary, hiring signal, relevance)
+//   method="apollo"        — Apollo 2-step DM finder (name + email + phone)
+//   method="linkedin"      — LinkedIn company intel via Apify
+//   method="openai_search" — OpenAI web-search → find founder/CEO; if LinkedIn URL
+//                            returned, scrape profile via Apify for email/headline
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
@@ -465,6 +467,213 @@ async function enrichWithLinkedIn(jobs: JobIn[], costCtx?: CostCtx): Promise<Rec
   return results;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// METHOD 4: OpenAI web-search + LinkedIn profile scraper (DM finder)
+// ──────────────────────────────────────────────────────────────────────────────
+// Why: Apollo's DB is US-centric and misses ~60-70% of AU SMBs. OpenAI's
+// built-in web-search tool grounds the model in live Google results, so it
+// reliably finds the founder/CEO of any real business. When OpenAI returns
+// a LinkedIn URL, we then scrape that profile via Apify to get headline
+// and occasional public email data.
+//
+// Flow per job:
+//   1. Chat Completions with model=gpt-4o-mini-search-preview (auto web search)
+//      → JSON {name, title, linkedin_url, source_url, confidence}
+//   2. If linkedin_url, run harvestapi/linkedin-profile-scraper on it
+//      → merge headline + email (if public) into DM record
+//
+// Cost per job (approx):
+//   OpenAI search:  ~$0.026  (search fee + mini tokens)
+//   LinkedIn scrape: ~$0.004 (only runs when URL is returned)
+//   Total:          ~$0.030  (vs Apollo ~$0.050)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const OPENAI_SEARCH_MODEL = "gpt-4o-mini-search-preview";
+
+const OPENAI_SEARCH_SYSTEM =
+  "You are a research assistant. Find the most senior decision-maker " +
+  "(founder, CEO, owner, managing director, principal) at the given " +
+  "company using live web search. Prefer founders/owners over hired " +
+  "executives when both exist. ONLY return info grounded in web sources. " +
+  "If you cannot find the person with confidence, return nulls — DO NOT " +
+  "guess. Return ONLY this JSON, no markdown, no commentary:\n" +
+  '{ "name": string|null, "title": string|null, "linkedin_url": string|null, ' +
+  '"source_url": string|null, "confidence": "high"|"medium"|"low" }';
+
+function buildOpenAiSearchQuery(job: JobIn): string {
+  const lines = [`Company: ${job.company_name}`];
+  if (job.location)         lines.push(`Location: ${job.location}`);
+  const industry = (job as Record<string, unknown>).ai_industry_vertical
+    ?? (job as Record<string, unknown>).company_industry;
+  if (industry)             lines.push(`Industry: ${industry}`);
+  if (job.company_website)  lines.push(`Website: ${job.company_website}`);
+  lines.push(
+    "\nFind the founder/CEO/owner/managing director. Return their name, " +
+    "exact title, LinkedIn profile URL if available, and the source URL " +
+    "where you found this info.",
+  );
+  return lines.join("\n");
+}
+
+/** Safe JSON parse tolerating ```json fences or minor wrapping. */
+function parseJsonLoose(raw: string): Record<string, unknown> | null {
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return (parsed && typeof parsed === "object") ? parsed : null;
+  } catch {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try { return JSON.parse(m[0]); } catch { return null; }
+  }
+}
+
+type OpenAiSearchHit = {
+  name: string;
+  title: string;
+  linkedin_url: string;
+  source_url: string;
+  confidence: string;
+};
+
+/** Step 1: OpenAI web search for CEO/founder of a single company. */
+async function openaiSearchDM(job: JobIn): Promise<OpenAiSearchHit | null> {
+  if (!job.company_name) return null;
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_SEARCH_MODEL,
+      // gpt-4o-mini-search-preview does web search automatically — no tools config needed
+      messages: [
+        { role: "system", content: OPENAI_SEARCH_SYSTEM },
+        { role: "user",   content: buildOpenAiSearchQuery(job) },
+      ],
+      // search-preview models do not accept temperature or response_format;
+      // prompt enforces JSON output which parseJsonLoose tolerates.
+      max_tokens: 400,
+    }),
+    signal: AbortSignal.timeout(45_000),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`OpenAI search HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = data.choices?.[0]?.message?.content ?? "";
+  const parsed  = parseJsonLoose(content);
+  if (!parsed) return null;
+
+  const name         = String(parsed.name         ?? "").trim();
+  const title        = String(parsed.title        ?? "").trim();
+  const linkedin_url = String(parsed.linkedin_url ?? "").trim();
+  const source_url   = String(parsed.source_url   ?? "").trim();
+  const confidence   = String(parsed.confidence   ?? "").trim().toLowerCase();
+
+  // Require a name AND at least one corroborating URL. Reject low confidence —
+  // better to let the next pass (Apollo) try than to accept a guess.
+  if (!name) return null;
+  if (!linkedin_url && !source_url) return null;
+  if (confidence === "low") return null;
+
+  return { name, title, linkedin_url, source_url, confidence };
+}
+
+/** Step 2: enrich a LinkedIn profile URL via Apify (harvestapi actor). */
+async function linkedinProfileEnrich(
+  url: string,
+  costCtx?: CostCtx,
+): Promise<{ headline: string; email: string; } | null> {
+  if (!url || !/linkedin\.com\/in\//i.test(url)) return null;
+
+  try {
+    const items = await runApifyActor(
+      "harvestapi/linkedin-profile-scraper",
+      { profileUrls: [url], maxItems: 1 },
+      60,
+      costCtx,
+    );
+    if (!items.length) return null;
+    const p = items[0] as Record<string, unknown>;
+
+    // harvestapi field names vary across runs; check common ones
+    const headline = String(p.headline ?? p.title ?? p.position ?? "").trim();
+    const contact = (p.contactInfo as Record<string, unknown> | undefined) ?? {};
+    const email   = String(
+      contact.email ?? p.email ?? p.publicEmail ?? "",
+    ).trim();
+
+    return { headline, email };
+  } catch (e) {
+    console.error(`[openai_search] LinkedIn scrape failed for ${url}:`, String(e));
+    return null; // non-fatal — we still have the OpenAI name/title
+  }
+}
+
+async function enrichWithOpenAiSearch(
+  jobs: JobIn[],
+  costCtx?: CostCtx,
+): Promise<Record<string, Record<string, unknown>>> {
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+
+  const results: Record<string, Record<string, unknown>> = {};
+
+  await withConcurrency(jobs, async (job) => {
+    try {
+      const hit = await openaiSearchDM(job);
+      if (!hit) return;
+
+      // Rough OpenAI search cost per job (model + ~$0.025/search)
+      if (costCtx) costCtx.totalCostUsd += 0.026;
+
+      // Optional Pass-1b: scrape LinkedIn profile if we got a URL
+      let liHeadline = "";
+      let liEmail    = "";
+      if (hit.linkedin_url) {
+        const profile = await linkedinProfileEnrich(hit.linkedin_url, costCtx);
+        if (profile) {
+          liHeadline = profile.headline;
+          liEmail    = profile.email;
+        }
+      }
+
+      // Only count as a "hit" if we have at least one contact channel
+      // (LinkedIn URL or email) — name alone isn't outreach-ready.
+      if (!hit.linkedin_url && !liEmail) return;
+
+      results[job.id] = {
+        dm_name:         hit.name,
+        dm_title:        hit.title || liHeadline || "Leadership",
+        dm_email:        liEmail,
+        dm_phone:        "",
+        dm_mobile:       "",
+        dm_linkedin_url: hit.linkedin_url,
+        dm_source:       hit.linkedin_url ? "openai_linkedin" : "openai",
+        dm_source_url:   hit.source_url,
+        dm_confidence:   hit.confidence,
+        dm_enriched_at:  new Date().toISOString(),
+      };
+    } catch (e) {
+      // Per-job failure is non-fatal — next pass (Apollo) will try this job
+      console.error(`[openai_search] ${job.company_name} failed:`, String(e));
+    }
+  });
+
+  return results;
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -508,6 +717,9 @@ serve(async (req: Request) => {
         break;
       case "linkedin":
         enrichments = await enrichWithLinkedIn(jobs, costCtx);
+        break;
+      case "openai_search":
+        enrichments = await enrichWithOpenAiSearch(jobs, costCtx);
         break;
       default:
         return json({ error: `Unknown method: ${method}` }, 400);

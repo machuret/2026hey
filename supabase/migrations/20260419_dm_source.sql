@@ -7,12 +7,17 @@
 -- routing, CRM pipelines) may want to treat them differently.
 --
 -- Values:
---   'apollo'       — discovered via Apollo people/enrichment actors
---   'seek_listing' — synthesized from emails/phone/recruiter fields on the
---                    original Seek (or other source) job listing
---   NULL           — no DM yet OR legacy rows pre-dating this column
+--   'openai_linkedin' — found via OpenAI web search, then LinkedIn profile
+--                       scraped (harvestapi) for email/headline
+--   'openai'          — found via OpenAI web search only (name + maybe URL;
+--                       LinkedIn scrape skipped or failed)
+--   'apollo'          — discovered via Apollo people/enrichment actors
+--   'seek_listing'    — synthesized from emails/phone/recruiter fields on
+--                       the original Seek (or other source) job listing
+--   NULL              — no DM yet OR legacy rows pre-dating this column
 --
--- Future extensibility: 'linkedin', 'manual', 'zoominfo', etc.
+-- Future extensibility: 'manual', 'zoominfo', 'hunter', etc. (TEXT column,
+-- no CHECK constraint — safe to add new values without migration).
 -- ═══════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE job_leads

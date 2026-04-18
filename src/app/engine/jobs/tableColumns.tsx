@@ -185,19 +185,34 @@ export const SCRAPED_COLUMNS: TableColumn[] = [
     header: "Decision Maker",
     width:  "180px",
     render: (j) => {
-      // Has DM? (emerald for Apollo, amber for Seek-listing fallback —
-      // amber signals a weaker contact you may want to review manually)
+      // Has DM? Badge colour reflects source strength:
+      //   emerald — openai_linkedin / apollo (authoritative contact)
+      //   sky     — openai (web-verified name but no profile scraped)
+      //   amber   — seek_listing (weak: listing contact, may be HR/reception)
       if (j.dm_name && (j.dm_email || j.dm_linkedin_url || j.dm_phone)) {
-        const isSeekFallback = j.dm_source === "seek_listing";
-        const cls = isSeekFallback
-          ? "bg-amber-900/30 text-amber-200 border border-amber-800"
-          : "bg-emerald-900/40 text-emerald-300 border border-emerald-800";
+        const src = j.dm_source;
+        let cls = "bg-emerald-900/40 text-emerald-300 border border-emerald-800";
+        let icon = "✓";
+        let label: string | null = null;
+        let tooltip = "Verified DM";
+        if (src === "seek_listing") {
+          cls = "bg-amber-900/30 text-amber-200 border border-amber-800";
+          icon = "≈"; label = "(listing)";
+          tooltip = "From Seek listing (weak signal)";
+        } else if (src === "openai") {
+          cls = "bg-sky-900/30 text-sky-200 border border-sky-800";
+          icon = "◎"; label = "(web)";
+          tooltip = "Name found via OpenAI web search (no LinkedIn scraped)";
+        } else if (src === "openai_linkedin") {
+          tooltip = "OpenAI + LinkedIn profile scrape";
+        } else if (src === "apollo") {
+          tooltip = "Apollo-verified DM";
+        }
         return (
-          <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold ${cls}`}
-                title={isSeekFallback ? "From Seek listing (weak signal)" : "Apollo-verified DM"}>
-            <span>{isSeekFallback ? "≈" : "✓"}</span>
+          <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold ${cls}`} title={tooltip}>
+            <span>{icon}</span>
             <span className="truncate max-w-[110px]">{j.dm_name}</span>
-            {isSeekFallback && <span className="text-[10px] opacity-75">(listing)</span>}
+            {label && <span className="text-[10px] opacity-75">{label}</span>}
           </span>
         );
       }

@@ -18,15 +18,18 @@ export const maxDuration = 300;
  * POST /api/engine/jobs/find-dm
  * Stage transition: qualified → enriched | stuck_no_dm
  *
- * Two-pass DM discovery:
- *   Pass 1 — Apollo (paid API) — authoritative source, stamped dm_source='apollo'
- *   Pass 2 — Seek-listing fallback (free) — for jobs Apollo couldn't find,
- *            synthesize a DM from the listing's own recruiter_name / emails[]
- *            / phone_numbers[] captured at scrape time. Stamped dm_source=
- *            'seek_listing' so downstream tooling can filter weaker contacts.
+ * Three-pass DM discovery (fail-forward chain):
+ *   Pass 1 — OpenAI web search + LinkedIn scraper (best for AU SMBs)
+ *            → dm_source = 'openai_linkedin' (full: name+URL+maybe email)
+ *            → dm_source = 'openai'          (partial: name only, no URL)
+ *   Pass 2 — Apollo (US-biased but authoritative when it hits)
+ *            → dm_source = 'apollo' (name+email+phone+LinkedIn URL)
+ *   Pass 3 — Seek-listing fallback (free, uses fields already on row)
+ *            → dm_source = 'seek_listing'
  *
- * After both passes, jobs without any DM get dm_attempts++ and
- * dm_failure_reason set. After 3 attempts total, they enter stuck_no_dm.
+ * Each pass only runs on jobs the prior passes didn't resolve. After all
+ * three, jobs without any DM get dm_attempts++ and dm_failure_reason set.
+ * After 3 total attempts, the job enters stuck_no_dm.
  */
 export async function POST(req: NextRequest) {
   const authErr = requireEngineAuth(req);
@@ -62,33 +65,62 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Pass 1: Apollo ─────────────────────────────────────────────────
     const start = Date.now();
-    const { enrichments: apolloEnrichments, costUsd } = await callEnrichEdgeFn({
-      method: "apollo",
-      jobs: eligible.map(trimForEnrich),
-      req,
-      api: "apollo",
-    });
-
-    // Only count Apollo rows as real hits if they have both a name AND a
-    // contact channel (email OR LinkedIn). Stamp dm_source='apollo' so
-    // downstream can tell it apart from the Seek fallback.
+    // Accumulate enrichments across passes. An earlier pass's hit is never
+    // overwritten (earlier source = higher priority in the chain).
     const realEnrichments: Record<string, Record<string, unknown>> = {};
-    for (const [id, fields] of Object.entries(apolloEnrichments)) {
-      if (fields.dm_name && (fields.dm_email || fields.dm_linkedin_url)) {
-        realEnrichments[id] = { ...fields, dm_source: "apollo" };
+    let totalCostUsd = 0;
+    let openaiCount = 0;  // Pass 1 hits (openai or openai_linkedin)
+    let apolloCount = 0;  // Pass 2 hits
+    let seekCount   = 0;  // Pass 3 hits
+
+    // ── Pass 1: OpenAI web search + LinkedIn scraper ────────────────────
+    // Soft-fail this pass on any error — Pass 2 (Apollo) will still run for
+    // every job. This keeps the chain resilient when OpenAI is rate-limited
+    // or the search-preview model is temporarily unavailable.
+    try {
+      const { enrichments: oaResults, costUsd: oaCost } = await callEnrichEdgeFn({
+        method: "openai_search",
+        jobs: eligible.map(trimForEnrich),
+        req,
+        api: "openai",
+      });
+      totalCostUsd += oaCost;
+      for (const [id, fields] of Object.entries(oaResults)) {
+        // Edge fn already filtered for a usable contact channel, but
+        // double-check here for belt-and-braces.
+        if (fields.dm_name && (fields.dm_linkedin_url || fields.dm_email)) {
+          realEnrichments[id] = fields; // edge fn already stamped dm_source
+          openaiCount++;
+        }
       }
-      // else: don't include yet — Pass 2 gets a shot at it
+    } catch (e) {
+      console.error("[find-dm] OpenAI search pass failed:", extractErrorMsg(e));
     }
 
-    // ── Pass 2: Seek-listing fallback ──────────────────────────────────
-    // For jobs Apollo couldn't find, use the contact fields already on
-    // the row (captured at scrape time). Zero cost, no extra API call.
-    let seekFallbackCount = 0;
+    // ── Pass 2: Apollo ──────────────────────────────────────────────────
+    const apolloTargets = eligible.filter((j) => !realEnrichments[String(j.id)]);
+    if (apolloTargets.length) {
+      const { enrichments: apolloResults, costUsd: apolloCost } = await callEnrichEdgeFn({
+        method: "apollo",
+        jobs: apolloTargets.map(trimForEnrich),
+        req,
+        api: "apollo",
+      });
+      totalCostUsd += apolloCost;
+      for (const [id, fields] of Object.entries(apolloResults)) {
+        if (fields.dm_name && (fields.dm_email || fields.dm_linkedin_url)) {
+          realEnrichments[id] = { ...fields, dm_source: "apollo" };
+          apolloCount++;
+        }
+      }
+    }
+
+    // ── Pass 3: Seek-listing fallback ──────────────────────────────────
+    // Zero cost, no extra API call. Uses contact fields already on the row.
     for (const job of eligible) {
       const id = String(job.id);
-      if (realEnrichments[id]) continue; // Apollo already won
+      if (realEnrichments[id]) continue;
       const synth = synthesizeSeekListingDM({
         emails:          (job.emails as string[] | null | undefined) ?? [],
         phone_numbers:   (job.phone_numbers as string[] | null | undefined) ?? [],
@@ -97,22 +129,19 @@ export async function POST(req: NextRequest) {
       });
       if (synth) {
         realEnrichments[id] = synth;
-        seekFallbackCount++;
+        seekCount++;
       }
-      // else: truly no contact data — applyEnrichmentsBatch marks as failure
     }
 
     const durationMs = Date.now() - start;
 
     const summary = await applyEnrichmentsBatch({
-      method: "apollo",
+      method: "apollo", // uses the ai_enriched → dm_enriched transition path for ALL sources
       originalJobs: eligible,
       enrichments: realEnrichments,
-      costUsd,
+      costUsd: totalCostUsd,
       durationMs,
     });
-
-    const apolloCount = summary.successes - seekFallbackCount;
 
     return NextResponse.json({
       success: true,
@@ -120,12 +149,13 @@ export async function POST(req: NextRequest) {
       requested: ids.length,
       processed: eligible.length,
       skipped: jobs.length - eligible.length,
-      costUsd,
+      costUsd: totalCostUsd,
       dm_found: summary.successes,
       dm_not_found: summary.failures,
       dm_by_source: {
-        apollo:       Math.max(0, apolloCount),
-        seek_listing: seekFallbackCount,
+        openai:       openaiCount,
+        apollo:       apolloCount,
+        seek_listing: seekCount,
       },
       transitions: summary.transitions,
     });
