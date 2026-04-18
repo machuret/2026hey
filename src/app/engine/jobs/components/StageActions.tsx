@@ -123,6 +123,14 @@ function MsgPill({ msg }: { msg: string }) {
 const ANALYZE_MAX = 50;
 const FIND_DM_MAX = 20;
 
+/** Split an array into fixed-size chunks. Empty array → []. */
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 /** Small warning pill shown when total exceeds the batch cap. */
 function OverflowWarning({ total, cap }: { total: number; cap: number }) {
   if (total <= cap) return null;
@@ -287,16 +295,21 @@ export function ScrapedActions({ selected, jobs, refresh }: {
    *   Stage 2: /find-dm on ALL ids (endpoint filters internally — newly
    *            qualified from stage 1 PLUS pre-existing qualified get DM search)
    *
-   * Shows per-stage progress so user sees what's happening during the
-   * long (up to ~2 min) total runtime.
+   * ── Why we chunk client-side ──────────────────────────────────────────
+   * Netlify/Vercel free-tier serverless functions time out at 10–26s.
+   * Calling /analyze with 5+ jobs risks exceeding that because the edge fn
+   * processes 3 OpenAI calls in parallel (each up to 45s). When the browser
+   * sees "Failed to fetch" it means the function was killed server-side
+   * before it could respond. Chunking to 3/5 jobs per request keeps each
+   * round-trip safely below the timeout.
    */
+  const ANALYZE_CHUNK = 3;  // ~10-15s per request (3 parallel OpenAI calls)
+  const FIND_DM_CHUNK = 5;  // Apollo is faster (~2-3s/job)
+
   const runEnrich = async (useAll: boolean) => {
     const rows = useAll ? jobs : selectedRows;
 
-    // un-analyzed → need /analyze
     const pendingIds = rows.filter((j) => !j.ai_enriched_at).map((j) => j.id);
-
-    // already-analyzed, qualified, no DM, not exhausted → need /find-dm now
     const preQualifiedIds = rows.filter((j) =>
          j.ai_enriched_at
       && !j.dm_name
@@ -305,7 +318,6 @@ export function ScrapedActions({ selected, jobs, refresh }: {
       && (j.dm_attempts ?? 0) < 3,
     ).map((j) => j.id);
 
-    // Cap each stage at its endpoint's batch limit
     const analyzeBatch = pendingIds.slice(0, ANALYZE_MAX);
 
     if (analyzeBatch.length === 0 && preQualifiedIds.length === 0) {
@@ -319,59 +331,81 @@ export function ScrapedActions({ selected, jobs, refresh }: {
     let   costUsd = 0;
     let   dmFound = 0;
 
-    // ── STAGE 1: Analyze ───────────────────────────────────────────────
+    // ── STAGE 1: Analyze (chunked) ─────────────────────────────────────
     if (analyzeBatch.length > 0) {
-      setProgress({ stage: 1, label: `Analyzing ${analyzeBatch.length} job${analyzeBatch.length === 1 ? "" : "s"}…` });
-      try {
-        const res  = await fetch("/api/engine/jobs/analyze", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ jobIds: analyzeBatch }),
-          signal:  AbortSignal.timeout(295_000),
+      const chunks = chunkArray(analyzeBatch, ANALYZE_CHUNK);
+      let processed = 0, successes = 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        setProgress({
+          stage: 1,
+          label:  `Analyzing batch ${i + 1}/${chunks.length} · ${processed}/${analyzeBatch.length} done`,
         });
-        const data = await res.json() as EngineActionResult;
-        if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
-        parts.push(`Analyzed ${data.successes ?? 0}/${data.processed ?? 0}`);
-        costUsd += Number(data.costUsd ?? 0);
-      } catch (e) {
-        setLoading(false); setProgress(null);
-        setMsg(`⚠ Stage 1 (Analyze) failed: ${e instanceof Error ? e.message : String(e)}`);
-        return;
+        try {
+          const res  = await fetch("/api/engine/jobs/analyze", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ jobIds: chunks[i] }),
+            signal:  AbortSignal.timeout(60_000),
+          });
+          const data = await res.json() as EngineActionResult;
+          if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
+          processed += Number(data.processed ?? 0);
+          successes += Number(data.successes ?? 0);
+          costUsd   += Number(data.costUsd ?? 0);
+        } catch (e) {
+          setLoading(false); setProgress(null);
+          const msg = e instanceof Error ? e.message : String(e);
+          const hint = msg.includes("Failed to fetch") || msg.includes("timeout")
+            ? " (server timed out — batch chunk too large or OpenAI slow)"
+            : "";
+          setMsg(`⚠ Stage 1 (Analyze) failed on batch ${i + 1}/${chunks.length}: ${msg}${hint}`);
+          return;
+        }
       }
+      parts.push(`Analyzed ${successes}/${processed}`);
     }
 
-    // ── STAGE 2: Find DM ────────────────────────────────────────────────
-    // Pass BOTH newly-analyzed ids + pre-existing qualified ids. The
-    // /find-dm endpoint filters internally (requires ai_enriched_at + score
-    // + internal poster), so non-qualified rows are skipped silently.
-    // Cap at 50 to match the /find-dm server-side limit.
+    // ── STAGE 2: Find DM (chunked) ─────────────────────────────────────
     const dmBatch = [...new Set([...analyzeBatch, ...preQualifiedIds])].slice(0, 50);
 
     if (dmBatch.length > 0) {
-      setProgress({ stage: 2, label: `Finding decision makers for up to ${dmBatch.length} job${dmBatch.length === 1 ? "" : "s"}…` });
-      try {
-        const res  = await fetch("/api/engine/jobs/find-dm", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ jobIds: dmBatch }),
-          signal:  AbortSignal.timeout(295_000),
+      const chunks = chunkArray(dmBatch, FIND_DM_CHUNK);
+      let totalProcessed = 0, totalSkipped = 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        setProgress({
+          stage: 2,
+          label:  `Finding decision makers · batch ${i + 1}/${chunks.length} · ${dmFound} found so far`,
         });
-        const data = await res.json() as EngineActionResult;
-        if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
-        dmFound = Number(data.dm_found ?? 0);
-        const processed = Number(data.processed ?? 0);
-        const skipped   = Number(data.skipped ?? 0);
-        parts.push(
-          processed === 0
-            ? `No qualified jobs for DM search (${skipped} skipped)`
-            : `DM found ${dmFound}/${processed}`,
-        );
-        costUsd += Number(data.costUsd ?? 0);
-      } catch (e) {
-        setLoading(false); setProgress(null);
-        setMsg(`⚠ Stage 2 (Find DM) failed: ${e instanceof Error ? e.message : String(e)}`);
-        return;
+        try {
+          const res  = await fetch("/api/engine/jobs/find-dm", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ jobIds: chunks[i] }),
+            signal:  AbortSignal.timeout(60_000),
+          });
+          const data = await res.json() as EngineActionResult;
+          if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
+          dmFound        += Number(data.dm_found ?? 0);
+          totalProcessed += Number(data.processed ?? 0);
+          totalSkipped   += Number(data.skipped ?? 0);
+          costUsd        += Number(data.costUsd ?? 0);
+        } catch (e) {
+          setLoading(false); setProgress(null);
+          const msg = e instanceof Error ? e.message : String(e);
+          const hint = msg.includes("Failed to fetch") || msg.includes("timeout")
+            ? " (server timed out — Apollo may be slow)"
+            : "";
+          setMsg(`⚠ Stage 2 (Find DM) failed on batch ${i + 1}/${chunks.length}: ${msg}${hint}`);
+          return;
+        }
       }
+      parts.push(
+        totalProcessed === 0
+          ? `No qualified jobs for DM search (${totalSkipped} skipped)`
+          : `DM found ${dmFound}/${totalProcessed}`,
+      );
     }
 
     setLoading(false); setProgress(null);
