@@ -53,7 +53,7 @@ describe("computeStage — post-AI states", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 7,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
     }))).toBe("qualified");
   });
 
@@ -61,7 +61,7 @@ describe("computeStage — post-AI states", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 4,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
     }))).toBe("dead_end");
   });
 
@@ -77,7 +77,7 @@ describe("computeStage — post-AI states", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 6,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
     }))).toBe("qualified");
   });
 
@@ -85,7 +85,7 @@ describe("computeStage — post-AI states", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 7,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
       dm_attempts: 3,
     }))).toBe("stuck_no_dm");
   });
@@ -94,7 +94,7 @@ describe("computeStage — post-AI states", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 7,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
       dm_attempts: 2,
     }))).toBe("qualified");
   });
@@ -121,7 +121,7 @@ describe("computeStage — enriched states", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 7,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
       dm_name: "Jane Doe",
       dm_email: null,
       dm_linkedin_url: null,
@@ -144,7 +144,7 @@ describe("computeStage — defensive behavior", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 7,
-      ai_poster_type: "internal",
+      ai_poster_type: "direct_employer",
       // dm_attempts intentionally omitted
     }))).toBe("qualified");
   });
@@ -153,6 +153,19 @@ describe("computeStage — defensive behavior", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: null,
+      ai_poster_type: "direct_employer",
+    }))).toBe("dead_end");
+  });
+
+  // Regression guard: the AI returns "direct_employer" (from the prompt in
+  // supabase/functions/engine-jobs-enrich/index.ts). A previous bug had this
+  // code comparing against "internal", which is never returned — so EVERY
+  // job ended up in dead_end and /ready was permanently empty.
+  // If someone re-introduces "internal", this test will fail.
+  it("AI poster_type 'internal' is NOT treated as qualified (stale legacy string)", () => {
+    expect(computeStage(job({
+      ai_enriched_at: "2026-01-01",
+      ai_relevance_score: 8,
       ai_poster_type: "internal",
     }))).toBe("dead_end");
   });

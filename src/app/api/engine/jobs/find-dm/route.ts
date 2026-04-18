@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const eligible = jobs.filter((j) =>
       j.ai_enriched_at != null &&
       Number(j.ai_relevance_score ?? 0) >= 6 &&
-      j.ai_poster_type === "internal" &&
+      j.ai_poster_type === "direct_employer" &&
       !j.dm_name &&
       Number(j.dm_attempts ?? 0) < 3,
     );

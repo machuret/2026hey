@@ -39,7 +39,7 @@ export function computeStage(job: Pick<JobLead,
     const attempts = job.dm_attempts ?? 0;
     const qualified =
       (job.ai_relevance_score ?? 0) >= AI_QUALIFIED_SCORE_THRESHOLD &&
-      job.ai_poster_type === "internal";
+      job.ai_poster_type === "direct_employer";
 
     if (!qualified) return "dead_end";
     if (attempts >= DM_SEARCH_MAX_ATTEMPTS) return "stuck_no_dm";

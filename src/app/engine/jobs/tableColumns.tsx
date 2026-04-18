@@ -130,7 +130,7 @@ const listedAtCell = (job: JobLead) => {
 
 const posterTypeCell = (job: JobLead) => {
   if (!job.ai_poster_type) return <span className="text-gray-600 text-xs">—</span>;
-  const isInternal = job.ai_poster_type === "internal";
+  const isInternal = job.ai_poster_type === "direct_employer";
   return (
     <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
       isInternal ? "bg-emerald-900/30 text-emerald-300" : "bg-orange-900/30 text-orange-400"
@@ -199,7 +199,7 @@ export const SCRAPED_COLUMNS: TableColumn[] = [
       const analysed  = !!j.ai_enriched_at;
       const qualified = analysed
         && (j.ai_relevance_score ?? 0) >= 6
-        && j.ai_poster_type === "internal";
+        && j.ai_poster_type === "direct_employer";
       const stuck     = analysed && (j.dm_attempts ?? 0) >= 3;
 
       if (!analysed) {
