@@ -171,23 +171,50 @@ export const SCRAPE_RESULTS_COLUMNS: TableColumn[] = [
 ];
 
 /** Scraped — unified view across pending / qualified / stuck / dead_end.
- *  Shows a "stage" pill so user understands where each row sits internally. */
+ *
+ *  ONE signal column: "Decision Maker" — answers the only question the user
+ *  cares about. Green ✓ = DM found (shouldn't normally appear on /scraped
+ *  since DM'd jobs move to /ready, but shown for edge cases). Otherwise
+ *  shows WHY there's no DM yet, so the user knows what the pipeline thinks.
+ */
 export const SCRAPED_COLUMNS: TableColumn[] = [
   { key: "company",  header: "Company",  render: companyCell },
   { key: "title",    header: "Job Title", render: titleCell },
-  { key: "stage",    header: "Stage",    width: "140px", render: (j) => {
-    // Compute the stage pill from fields (mirrors computeStage)
-    const hasDm = !!j.dm_name && (!!j.dm_email || !!j.dm_linkedin_url);
-    const analysed = !!j.ai_enriched_at;
-    const qualified = analysed && (j.ai_relevance_score ?? 0) >= 6 && j.ai_poster_type === "internal";
-    const stuck = analysed && !hasDm && (j.dm_attempts ?? 0) >= 3;
-    let label = "Pending", cls = "bg-gray-800 text-gray-300";
-    if (stuck)            { label = "Stuck — no DM"; cls = "bg-orange-900/40 text-orange-300"; }
-    else if (qualified)   { label = "Qualified";     cls = "bg-indigo-900/40 text-indigo-300"; }
-    else if (analysed)    { label = "Not relevant";  cls = "bg-gray-800 text-gray-500"; }
-    return <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
-  } },
-  { key: "ai_score", header: "Score",    render: aiScoreCell },
+  {
+    key:    "dm_status",
+    header: "Decision Maker",
+    width:  "180px",
+    render: (j) => {
+      // Has DM?
+      if (j.dm_name && (j.dm_email || j.dm_linkedin_url)) {
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold bg-emerald-900/40 text-emerald-300 border border-emerald-800">
+            <span>✓</span>
+            <span className="truncate max-w-[120px]">{j.dm_name}</span>
+          </span>
+        );
+      }
+
+      // Compute WHY there's no DM yet
+      const analysed  = !!j.ai_enriched_at;
+      const qualified = analysed
+        && (j.ai_relevance_score ?? 0) >= 6
+        && j.ai_poster_type === "internal";
+      const stuck     = analysed && (j.dm_attempts ?? 0) >= 3;
+
+      if (!analysed) {
+        return <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700"><span>○</span> Not analyzed yet</span>;
+      }
+      if (stuck) {
+        return <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium bg-orange-900/40 text-orange-300 border border-orange-800"><span>✗</span> No DM found</span>;
+      }
+      if (qualified) {
+        return <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium bg-indigo-900/40 text-indigo-300 border border-indigo-800"><span>…</span> Ready for DM search</span>;
+      }
+      // Analyzed but not qualified (low score or agency poster)
+      return <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium bg-gray-900 text-gray-500 border border-gray-800"><span>—</span> Not relevant</span>;
+    },
+  },
   { key: "location", header: "Location", render: locationCell },
   { key: "source",   header: "Source",   render: sourceCell },
 ];

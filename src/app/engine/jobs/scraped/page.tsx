@@ -14,8 +14,8 @@ export default function ScrapedPage() {
   return (
     <StagePage
       stage="scraped"
-      title="Scraped — Awaiting Enrichment"
-      description="Jobs that have been scraped but aren't ready to send yet. Click Enrich to run AI analysis and decision-maker lookup."
+      title="Scraped — Find a Decision Maker"
+      description="One click runs the full pipeline: AI checks if the job is relevant, then searches for a decision maker. If we find one, the job moves to Ready. If not, you'll see why here."
       columns={SCRAPED_COLUMNS}
       bulkActions={(selected, jobs, refresh) => (
         <ScrapedActions selected={selected} jobs={jobs} refresh={refresh} />

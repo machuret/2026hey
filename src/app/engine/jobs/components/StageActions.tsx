@@ -262,8 +262,6 @@ export function EnrichedActions({ selected, jobs, refresh }: {
 // Simplified 3-tab actions (Scraped / Ready / Sent)
 // ══════════════════════════════════════════════════════════════════════════
 
-const ENRICH_MAX = 20; // limited by the smaller of analyze(50)/find-dm(20)
-
 /**
  * ScrapedActions — unified "Enrich" bulk action.
  *
@@ -278,30 +276,39 @@ export function ScrapedActions({ selected, jobs, refresh }: {
   selected: Set<string>; jobs: JobLead[]; refresh: () => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const [msg,     setMsg]     = useState("");
+  const [progress, setProgress] = useState<{ stage: 1 | 2; label: string } | null>(null);
+  const [msg, setMsg] = useState("");
 
   const selectedRows = jobs.filter((j) => selected.has(j.id));
-  const pendingIds   = selectedRows.filter((j) => !j.ai_enriched_at).map((j) => j.id);
-  const qualifiedIds = selectedRows.filter((j) =>
-       j.ai_enriched_at
-    && !j.dm_name
-    && (j.ai_relevance_score ?? 0) >= 6
-    && j.ai_poster_type === "internal"
-    && (j.dm_attempts ?? 0) < 3,
-  ).map((j) => j.id);
 
+  /**
+   * Runs the full Scrape → Ready transition for a batch of jobs in one click.
+   *   Stage 1: /analyze on un-analyzed jobs (OpenAI classification)
+   *   Stage 2: /find-dm on ALL ids (endpoint filters internally — newly
+   *            qualified from stage 1 PLUS pre-existing qualified get DM search)
+   *
+   * Shows per-stage progress so user sees what's happening during the
+   * long (up to ~2 min) total runtime.
+   */
   const runEnrich = async (useAll: boolean) => {
     const rows = useAll ? jobs : selectedRows;
-    const pIds = rows.filter((j) => !j.ai_enriched_at).map((j) => j.id).slice(0, ANALYZE_MAX);
-    const qIds = rows.filter((j) =>
+
+    // un-analyzed → need /analyze
+    const pendingIds = rows.filter((j) => !j.ai_enriched_at).map((j) => j.id);
+
+    // already-analyzed, qualified, no DM, not exhausted → need /find-dm now
+    const preQualifiedIds = rows.filter((j) =>
          j.ai_enriched_at
       && !j.dm_name
       && (j.ai_relevance_score ?? 0) >= 6
       && j.ai_poster_type === "internal"
       && (j.dm_attempts ?? 0) < 3,
-    ).map((j) => j.id).slice(0, FIND_DM_MAX);
+    ).map((j) => j.id);
 
-    if (pIds.length === 0 && qIds.length === 0) {
+    // Cap each stage at its endpoint's batch limit
+    const analyzeBatch = pendingIds.slice(0, ANALYZE_MAX);
+
+    if (analyzeBatch.length === 0 && preQualifiedIds.length === 0) {
       setMsg("Nothing to enrich in the selection");
       return;
     }
@@ -309,64 +316,74 @@ export function ScrapedActions({ selected, jobs, refresh }: {
     setLoading(true);
     setMsg("");
     const parts: string[] = [];
-    let costUsd = 0;
+    let   costUsd = 0;
+    let   dmFound = 0;
 
-    // ── Stage 1: Analyze (if any pending) ──────────────────────────────
-    if (pIds.length > 0) {
+    // ── STAGE 1: Analyze ───────────────────────────────────────────────
+    if (analyzeBatch.length > 0) {
+      setProgress({ stage: 1, label: `Analyzing ${analyzeBatch.length} job${analyzeBatch.length === 1 ? "" : "s"}…` });
       try {
         const res  = await fetch("/api/engine/jobs/analyze", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ jobIds: pIds }),
+          body:    JSON.stringify({ jobIds: analyzeBatch }),
           signal:  AbortSignal.timeout(295_000),
         });
         const data = await res.json() as EngineActionResult;
         if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
-        parts.push(`analyze ${data.successes ?? 0}/${data.processed ?? 0}`);
+        parts.push(`Analyzed ${data.successes ?? 0}/${data.processed ?? 0}`);
         costUsd += Number(data.costUsd ?? 0);
       } catch (e) {
-        setLoading(false);
-        setMsg(`⚠ Analyze failed: ${e instanceof Error ? e.message : String(e)}`);
+        setLoading(false); setProgress(null);
+        setMsg(`⚠ Stage 1 (Analyze) failed: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
     }
 
-    // ── Stage 2: Find DM (pre-existing qualified) ──────────────────────
-    // Note: newly-qualified jobs (from stage 1) are NOT automatically DM'd
-    // here — the user clicks Enrich again on the refreshed list. This keeps
-    // the flow predictable + honors the per-stage batch caps.
-    if (qIds.length > 0) {
+    // ── STAGE 2: Find DM ────────────────────────────────────────────────
+    // Pass BOTH newly-analyzed ids + pre-existing qualified ids. The
+    // /find-dm endpoint filters internally (requires ai_enriched_at + score
+    // + internal poster), so non-qualified rows are skipped silently.
+    // Cap at 50 to match the /find-dm server-side limit.
+    const dmBatch = [...new Set([...analyzeBatch, ...preQualifiedIds])].slice(0, 50);
+
+    if (dmBatch.length > 0) {
+      setProgress({ stage: 2, label: `Finding decision makers for up to ${dmBatch.length} job${dmBatch.length === 1 ? "" : "s"}…` });
       try {
         const res  = await fetch("/api/engine/jobs/find-dm", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ jobIds: qIds }),
+          body:    JSON.stringify({ jobIds: dmBatch }),
           signal:  AbortSignal.timeout(295_000),
         });
         const data = await res.json() as EngineActionResult;
         if (!res.ok || data.error) throw new Error((data.error as string) || `HTTP ${res.status}`);
-        parts.push(`DM ${data.dm_found ?? 0}/${data.processed ?? 0}`);
+        dmFound = Number(data.dm_found ?? 0);
+        const processed = Number(data.processed ?? 0);
+        const skipped   = Number(data.skipped ?? 0);
+        parts.push(
+          processed === 0
+            ? `No qualified jobs for DM search (${skipped} skipped)`
+            : `DM found ${dmFound}/${processed}`,
+        );
         costUsd += Number(data.costUsd ?? 0);
       } catch (e) {
-        setLoading(false);
-        setMsg(`⚠ Find DM failed: ${e instanceof Error ? e.message : String(e)}`);
+        setLoading(false); setProgress(null);
+        setMsg(`⚠ Stage 2 (Find DM) failed: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
     }
 
-    setLoading(false);
-    setMsg(`✓ ${parts.join(" · ")}${costUsd > 0 ? ` · $${costUsd.toFixed(4)}` : ""}`);
+    setLoading(false); setProgress(null);
+    const verdict = dmFound > 0
+      ? `✅ Found ${dmFound} decision maker${dmFound === 1 ? "" : "s"} — check the Ready tab`
+      : "ℹ No decision makers found this run";
+    setMsg(`${verdict} · ${parts.join(" · ")}${costUsd > 0 ? ` · $${costUsd.toFixed(4)}` : ""}`);
     refresh();
   };
 
-  const selectedCount = pendingIds.length + qualifiedIds.length;
-  const allPendingCount   = jobs.filter((j) => !j.ai_enriched_at).length;
-  const allQualifiedCount = jobs.filter((j) =>
-       j.ai_enriched_at && !j.dm_name
-    && (j.ai_relevance_score ?? 0) >= 6 && j.ai_poster_type === "internal"
-    && (j.dm_attempts ?? 0) < 3,
-  ).length;
-  const allCount = Math.min(allPendingCount, ANALYZE_MAX) + Math.min(allQualifiedCount, FIND_DM_MAX);
+  const selectedCount = selectedRows.length;
+  const allCount      = jobs.length;
 
   return (
     <>
@@ -375,7 +392,7 @@ export function ScrapedActions({ selected, jobs, refresh }: {
         disabled={selectedCount === 0}
         loading={loading}
         icon={Sparkles}
-        label={`Enrich Selected (${Math.min(selectedCount, ENRICH_MAX * 2)})`}
+        label={`Enrich Selected (${selectedCount})`}
         color="indigo"
       />
       <ActionButton
@@ -383,16 +400,28 @@ export function ScrapedActions({ selected, jobs, refresh }: {
         disabled={allCount === 0}
         loading={loading}
         icon={Sparkles}
-        label={`Enrich All (${allCount})`}
+        label={`Enrich All (${Math.min(allCount, ANALYZE_MAX)})`}
         color="blue"
       />
-      {(allPendingCount > ANALYZE_MAX || allQualifiedCount > FIND_DM_MAX) && (
-        <span className="text-xs text-amber-400">
-          ⓘ First {ANALYZE_MAX} pending + {FIND_DM_MAX} qualified per batch — use AutoPilot to process all.
+
+      {progress && (
+        <span className="inline-flex items-center gap-2 rounded-lg bg-indigo-950/50 border border-indigo-700 px-3 py-1.5 text-xs text-indigo-200">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span className="font-mono text-indigo-400">[{progress.stage}/2]</span>
+          {progress.label}
         </span>
       )}
+
+      {allCount > ANALYZE_MAX && !loading && (
+        <span className="text-xs text-amber-400">
+          ⓘ Max {ANALYZE_MAX} per batch — run Enrich All again for the rest, or use AutoPilot.
+        </span>
+      )}
+
       <MsgPill msg={msg} />
+
       <span className="mx-1 h-6 w-px bg-gray-700" aria-hidden />
+
       <DeleteButton selected={selected} refresh={refresh} stageLabel="scraped" />
     </>
   );
