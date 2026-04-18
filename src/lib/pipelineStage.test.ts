@@ -49,7 +49,7 @@ describe("computeStage — pre-AI states", () => {
 });
 
 describe("computeStage — post-AI states", () => {
-  it("AI done, score ≥ 6, internal → qualified", () => {
+  it("AI done, direct_employer → qualified (score irrelevant)", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 7,
@@ -57,12 +57,20 @@ describe("computeStage — post-AI states", () => {
     }))).toBe("qualified");
   });
 
-  it("AI done, score < 6 → dead_end", () => {
+  it("AI done, LOW score + direct_employer → still qualified (score is NOT a gate)", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
       ai_relevance_score: 4,
       ai_poster_type: "direct_employer",
-    }))).toBe("dead_end");
+    }))).toBe("qualified");
+  });
+
+  it("AI done, null score + direct_employer → still qualified (score not required)", () => {
+    expect(computeStage(job({
+      ai_enriched_at: "2026-01-01",
+      ai_relevance_score: null,
+      ai_poster_type: "direct_employer",
+    }))).toBe("qualified");
   });
 
   it("AI done, score 6 but agency poster → dead_end", () => {
@@ -73,10 +81,10 @@ describe("computeStage — post-AI states", () => {
     }))).toBe("dead_end");
   });
 
-  it("AI done, score at threshold (6) → qualified (boundary)", () => {
+  it("AI done, score=1 + direct_employer → qualified (low bar, poster type wins)", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
-      ai_relevance_score: 6,
+      ai_relevance_score: 1,
       ai_poster_type: "direct_employer",
     }))).toBe("qualified");
   });
@@ -149,11 +157,11 @@ describe("computeStage — defensive behavior", () => {
     }))).toBe("qualified");
   });
 
-  it("null ai_relevance_score treats as 0 → dead_end", () => {
+  it("agency_recruiter is the ONLY dead_end signal (regardless of score)", () => {
     expect(computeStage(job({
       ai_enriched_at: "2026-01-01",
-      ai_relevance_score: null,
-      ai_poster_type: "direct_employer",
+      ai_relevance_score: 10,
+      ai_poster_type: "agency_recruiter",
     }))).toBe("dead_end");
   });
 

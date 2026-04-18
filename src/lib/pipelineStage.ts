@@ -8,8 +8,8 @@ import type { JobLead } from "@/app/engine/jobs/types";
 
 export type PipelineStage =
   | "pending"      // new, awaiting AI analysis
-  | "qualified"    // AI said yes (score ≥ 6, internal poster), awaiting DM search
-  | "dead_end"     // AI said no (low score or agency) — auto-dismissable
+  | "qualified"    // AI classified as direct_employer, awaiting DM search
+  | "dead_end"     // AI classified as agency_recruiter — auto-dismissable
   | "enriched"     // DM found (name + email OR linkedin) — ready to review
   | "stuck_no_dm"  // Qualified but DM search exhausted (3 attempts)
   | "ready"        // Enriched and ready to push (alias of enriched in practice)
@@ -17,7 +17,14 @@ export type PipelineStage =
   | "smartleaded"  // pushed_to_smartlead
   | "dismissed";   // dismissed or recruiter_dismissed
 
-export const AI_QUALIFIED_SCORE_THRESHOLD = 6;
+/**
+ * Score is informational only (sorting / display) — it does NOT gate
+ * pipeline progression. The only gate for DM search is
+ * `ai_poster_type === "direct_employer"`. Score ≥ 6 was previously a hard
+ * cutoff; removed because gpt-4o-mini's 1-10 score is too subjective to
+ * block on, and ~30-40% of otherwise-valid direct-employer leads were
+ * being dropped for no reason.
+ */
 export const DM_SEARCH_MAX_ATTEMPTS = 3;
 export const AI_MAX_ATTEMPTS = 2;
 
@@ -37,9 +44,9 @@ export function computeStage(job: Pick<JobLead,
   // AI done
   if (job.ai_enriched_at) {
     const attempts = job.dm_attempts ?? 0;
-    const qualified =
-      (job.ai_relevance_score ?? 0) >= AI_QUALIFIED_SCORE_THRESHOLD &&
-      job.ai_poster_type === "direct_employer";
+    // Only `direct_employer` (AI classification) qualifies for DM search.
+    // Score is informational — NOT a gate. See comment above.
+    const qualified = job.ai_poster_type === "direct_employer";
 
     if (!qualified) return "dead_end";
     if (attempts >= DM_SEARCH_MAX_ATTEMPTS) return "stuck_no_dm";

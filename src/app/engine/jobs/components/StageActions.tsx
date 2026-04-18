@@ -315,7 +315,6 @@ export function ScrapedActions({ selected, jobs, refresh }: {
     const preQualifiedIds = rows.filter((j) =>
          j.ai_enriched_at
       && !j.dm_name
-      && (j.ai_relevance_score ?? 0) >= 6
       && j.ai_poster_type === "direct_employer"
       && (j.dm_attempts ?? 0) < 3,
     ).map((j) => j.id);

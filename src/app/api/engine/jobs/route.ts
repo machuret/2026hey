@@ -38,17 +38,18 @@ export async function GET(req: NextRequest) {
         case "qualified":
           query = query
             .not("ai_enriched_at", "is", null)
-            .gte("ai_relevance_score", 6)
             .eq("ai_poster_type", "direct_employer")
             .is("dm_name", null)
             .lt("dm_attempts", 3)
             .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "dead_end":
+          // Dead-end = analyzed but NOT direct_employer (i.e. agency poster).
+          // Score is not a dead-end reason anymore.
           query = query
             .not("ai_enriched_at", "is", null)
             .is("dm_name", null)
-            .or("ai_relevance_score.lt.6,ai_poster_type.neq.direct_employer")
+            .neq("ai_poster_type", "direct_employer")
             .not("status", "in", "(pushed_to_crm,pushed_to_smartlead,dismissed,recruiter_dismissed)");
           break;
         case "stuck_no_dm":

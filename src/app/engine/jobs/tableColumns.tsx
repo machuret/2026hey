@@ -195,11 +195,9 @@ export const SCRAPED_COLUMNS: TableColumn[] = [
         );
       }
 
-      // Compute WHY there's no DM yet
+      // Compute WHY there's no DM yet (score is informational, not a gate)
       const analysed  = !!j.ai_enriched_at;
-      const qualified = analysed
-        && (j.ai_relevance_score ?? 0) >= 6
-        && j.ai_poster_type === "direct_employer";
+      const qualified = analysed && j.ai_poster_type === "direct_employer";
       const stuck     = analysed && (j.dm_attempts ?? 0) >= 3;
 
       if (!analysed) {

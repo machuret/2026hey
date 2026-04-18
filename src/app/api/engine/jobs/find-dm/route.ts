@@ -35,11 +35,11 @@ export async function POST(req: NextRequest) {
     const jobs = await fetchJobsByIds(ids);
     if (!jobs.length) return NextResponse.json({ error: "No jobs found" }, { status: 404 });
 
-    // Sanity: only process jobs that are AI-enriched + qualified
-    // (Prevents accidental calls on raw/unqualified jobs, protects budget)
+    // Sanity: only process direct-employer jobs (agencies are competitors
+    // and auto-dismissed). Score is NOT a gate — it's too subjective to
+    // block on. See src/lib/pipelineStage.ts for rationale.
     const eligible = jobs.filter((j) =>
       j.ai_enriched_at != null &&
-      Number(j.ai_relevance_score ?? 0) >= 6 &&
       j.ai_poster_type === "direct_employer" &&
       !j.dm_name &&
       Number(j.dm_attempts ?? 0) < 3,
