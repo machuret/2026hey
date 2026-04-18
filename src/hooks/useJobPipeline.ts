@@ -66,6 +66,7 @@ function hydrateScrapedJob(raw: Record<string, unknown>): JobLead {
     dm_mobile:           null,
     dm_linkedin_url:     null,
     dm_enriched_at:      null,
+    dm_source:           null,
     li_company_url:      null,
     li_company_desc:     null,
     li_company_size:     null,

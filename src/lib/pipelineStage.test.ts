@@ -17,6 +17,7 @@ const job = (overrides: Partial<JobInput> = {}): JobInput => ({
   dm_name: null,
   dm_email: null,
   dm_linkedin_url: null,
+  dm_phone: null,
   ...overrides,
 });
 
@@ -122,6 +123,16 @@ describe("computeStage — enriched states", () => {
       ai_enriched_at: "2026-01-01",
       dm_name: "Jane Doe",
       dm_linkedin_url: "https://linkedin.com/in/jane",
+    }))).toBe("enriched");
+  });
+
+  it("has dm_name + dm_phone ONLY (Seek-listing fallback case) → enriched", () => {
+    // Seek-listing DMs often have just a phone number. They must still
+    // count as enriched or the fallback is worthless.
+    expect(computeStage(job({
+      ai_enriched_at: "2026-01-01",
+      dm_name: "Hiring contact",
+      dm_phone: "0400 123 456",
     }))).toBe("enriched");
   });
 

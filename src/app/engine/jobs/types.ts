@@ -79,6 +79,8 @@ export type JobLead = {
   dm_mobile: string | null;
   dm_linkedin_url: string | null;
   dm_enriched_at: string | null;
+  // How the DM was discovered: 'apollo' | 'seek_listing' | (future: 'linkedin', 'manual')
+  dm_source: string | null;
   // LinkedIn company
   li_company_url: string | null;
   li_company_desc: string | null;

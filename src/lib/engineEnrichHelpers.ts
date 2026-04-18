@@ -22,6 +22,64 @@ export class TransientApiError extends Error {
 }
 
 /**
+ * Minimal job shape needed to synthesize a DM from the original listing.
+ * Defined locally so this helper is trivially testable without importing
+ * the full JobLead type.
+ */
+export type SeekListingDMInput = {
+  emails?: string[] | null;
+  phone_numbers?: string[] | null;
+  recruiter_name?: string | null;
+  recruiter_phone?: string | null;
+};
+
+/**
+ * Synthesize a DM contact from the fields already captured during scraping
+ * (`recruiter_name`, `emails[]`, `phone_numbers[]`, `recruiter_phone`).
+ *
+ * Returns an enrichment-shaped object (same keys Apollo emits) ready to
+ * feed into `applyEnrichmentsBatch`, OR `null` if the listing has zero
+ * usable contact data.
+ *
+ * This runs at ZERO cost — no external API — so it's the ideal last-resort
+ * fallback when Apollo returns nothing. The trade-off is contact quality:
+ * a Seek-listed email is often an HR assistant or a generic inbox, not a
+ * true decision maker. That's why we set `dm_source = "seek_listing"` so
+ * downstream tooling (SmartLead campaigns, CRM views) can filter these
+ * out if desired.
+ *
+ * Rules:
+ *   - Need AT LEAST ONE of: an email, recruiter_phone, or any phone_number
+ *     (name alone is useless for outreach)
+ *   - Prefer recruiter_name as dm_name; fall back to a generic placeholder
+ *     so SmartLead personalization templates still have a value to use
+ */
+export function synthesizeSeekListingDM(
+  job: SeekListingDMInput,
+): Record<string, unknown> | null {
+  const emails = Array.isArray(job.emails) ? job.emails.filter(Boolean) : [];
+  const phones = Array.isArray(job.phone_numbers) ? job.phone_numbers.filter(Boolean) : [];
+  const email  = emails[0] ?? null;
+  const phone  = (job.recruiter_phone || "").trim() || phones[0] || null;
+
+  // Reachability gate — need at least one contact channel
+  if (!email && !phone) return null;
+
+  const name = (job.recruiter_name || "").trim() || "Hiring contact";
+
+  return {
+    dm_name:         name,
+    dm_title:        "Listed contact",
+    dm_email:        email,
+    dm_phone:        phone,
+    dm_mobile:       "",
+    dm_linkedin_url: "",
+    dm_source:       "seek_listing",
+    dm_enriched_at:  new Date().toISOString(),
+  };
+}
+
+/**
  * Trim a JobLead to the minimal shape the edge function needs.
  * Also strips the description to 5K chars for cost control.
  */

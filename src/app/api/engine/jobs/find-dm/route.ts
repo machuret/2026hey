@@ -8,6 +8,7 @@ import {
   callEnrichEdgeFn,
   applyEnrichmentsBatch,
   TransientApiError,
+  synthesizeSeekListingDM,
 } from "@/lib/engineEnrichHelpers";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +17,16 @@ export const maxDuration = 300;
 /**
  * POST /api/engine/jobs/find-dm
  * Stage transition: qualified → enriched | stuck_no_dm
- * Runs Apollo DM finder. If Apollo returns nothing, increments dm_attempts
- * and sets dm_failure_reason. After 3 attempts, the job enters stuck_no_dm.
  *
- * STRICT STAGE GATE: jobs that don't get a DM cannot progress to the next stage.
- * They remain in `qualified` (retryable) or `stuck_no_dm` (exhausted).
+ * Two-pass DM discovery:
+ *   Pass 1 — Apollo (paid API) — authoritative source, stamped dm_source='apollo'
+ *   Pass 2 — Seek-listing fallback (free) — for jobs Apollo couldn't find,
+ *            synthesize a DM from the listing's own recruiter_name / emails[]
+ *            / phone_numbers[] captured at scrape time. Stamped dm_source=
+ *            'seek_listing' so downstream tooling can filter weaker contacts.
+ *
+ * After both passes, jobs without any DM get dm_attempts++ and
+ * dm_failure_reason set. After 3 attempts total, they enter stuck_no_dm.
  */
 export async function POST(req: NextRequest) {
   const authErr = requireEngineAuth(req);
@@ -56,23 +62,47 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── Pass 1: Apollo ─────────────────────────────────────────────────
     const start = Date.now();
-    const { enrichments, costUsd } = await callEnrichEdgeFn({
+    const { enrichments: apolloEnrichments, costUsd } = await callEnrichEdgeFn({
       method: "apollo",
       jobs: eligible.map(trimForEnrich),
       req,
       api: "apollo",
     });
-    const durationMs = Date.now() - start;
 
-    // Filter out "enrichments" that are actually empty (no dm_name) — those are failures
-    const realEnrichments: typeof enrichments = {};
-    for (const [id, fields] of Object.entries(enrichments)) {
+    // Only count Apollo rows as real hits if they have both a name AND a
+    // contact channel (email OR LinkedIn). Stamp dm_source='apollo' so
+    // downstream can tell it apart from the Seek fallback.
+    const realEnrichments: Record<string, Record<string, unknown>> = {};
+    for (const [id, fields] of Object.entries(apolloEnrichments)) {
       if (fields.dm_name && (fields.dm_email || fields.dm_linkedin_url)) {
-        realEnrichments[id] = fields;
+        realEnrichments[id] = { ...fields, dm_source: "apollo" };
       }
-      // else: don't include → applyEnrichmentsBatch will treat as failure → dm_attempts++
+      // else: don't include yet — Pass 2 gets a shot at it
     }
+
+    // ── Pass 2: Seek-listing fallback ──────────────────────────────────
+    // For jobs Apollo couldn't find, use the contact fields already on
+    // the row (captured at scrape time). Zero cost, no extra API call.
+    let seekFallbackCount = 0;
+    for (const job of eligible) {
+      const id = String(job.id);
+      if (realEnrichments[id]) continue; // Apollo already won
+      const synth = synthesizeSeekListingDM({
+        emails:          (job.emails as string[] | null | undefined) ?? [],
+        phone_numbers:   (job.phone_numbers as string[] | null | undefined) ?? [],
+        recruiter_name:  (job.recruiter_name as string | null | undefined) ?? null,
+        recruiter_phone: (job.recruiter_phone as string | null | undefined) ?? null,
+      });
+      if (synth) {
+        realEnrichments[id] = synth;
+        seekFallbackCount++;
+      }
+      // else: truly no contact data — applyEnrichmentsBatch marks as failure
+    }
+
+    const durationMs = Date.now() - start;
 
     const summary = await applyEnrichmentsBatch({
       method: "apollo",
@@ -81,6 +111,8 @@ export async function POST(req: NextRequest) {
       costUsd,
       durationMs,
     });
+
+    const apolloCount = summary.successes - seekFallbackCount;
 
     return NextResponse.json({
       success: true,
@@ -91,6 +123,10 @@ export async function POST(req: NextRequest) {
       costUsd,
       dm_found: summary.successes,
       dm_not_found: summary.failures,
+      dm_by_source: {
+        apollo:       Math.max(0, apolloCount),
+        seek_listing: seekFallbackCount,
+      },
       transitions: summary.transitions,
     });
   } catch (err) {

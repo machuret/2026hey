@@ -23,7 +23,7 @@ const ALLOWED_FIELDS = new Set([
   "ai_candidate_persona", "ai_pitch_angle", "ai_email_snippet", "ai_objection_preempt",
   // DM enrichment
   "dm_name", "dm_title", "dm_email", "dm_phone", "dm_mobile",
-  "dm_linkedin_url", "dm_enriched_at",
+  "dm_linkedin_url", "dm_enriched_at", "dm_source",
   // LinkedIn enrichment
   "li_company_url", "li_company_desc", "li_company_size",
   "li_industry", "li_hq_location", "li_enriched_at",

@@ -31,15 +31,16 @@ export const AI_MAX_ATTEMPTS = 2;
 /** Compute the pipeline stage of a job from its current fields. */
 export function computeStage(job: Pick<JobLead,
   | "status" | "ai_enriched_at" | "ai_relevance_score" | "ai_poster_type"
-  | "dm_name" | "dm_email" | "dm_linkedin_url"
+  | "dm_name" | "dm_email" | "dm_linkedin_url" | "dm_phone"
 > & { dm_attempts?: number }): PipelineStage {
   // Terminal states first
   if (job.status === "pushed_to_crm") return "pushed";
   if (job.status === "pushed_to_smartlead") return "smartleaded";
   if (job.status === "dismissed" || job.status === "recruiter_dismissed") return "dismissed";
 
-  // Has DM → enriched (ready to push)
-  if (job.dm_name && (job.dm_email || job.dm_linkedin_url)) return "enriched";
+  // Has DM with at least one contact channel → enriched (ready to push).
+  // Phone-only DMs count — Seek-listing fallbacks often only have a phone.
+  if (job.dm_name && (job.dm_email || job.dm_linkedin_url || job.dm_phone)) return "enriched";
 
   // AI done
   if (job.ai_enriched_at) {

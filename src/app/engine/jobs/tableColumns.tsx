@@ -185,12 +185,19 @@ export const SCRAPED_COLUMNS: TableColumn[] = [
     header: "Decision Maker",
     width:  "180px",
     render: (j) => {
-      // Has DM?
-      if (j.dm_name && (j.dm_email || j.dm_linkedin_url)) {
+      // Has DM? (emerald for Apollo, amber for Seek-listing fallback —
+      // amber signals a weaker contact you may want to review manually)
+      if (j.dm_name && (j.dm_email || j.dm_linkedin_url || j.dm_phone)) {
+        const isSeekFallback = j.dm_source === "seek_listing";
+        const cls = isSeekFallback
+          ? "bg-amber-900/30 text-amber-200 border border-amber-800"
+          : "bg-emerald-900/40 text-emerald-300 border border-emerald-800";
         return (
-          <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold bg-emerald-900/40 text-emerald-300 border border-emerald-800">
-            <span>✓</span>
-            <span className="truncate max-w-[120px]">{j.dm_name}</span>
+          <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold ${cls}`}
+                title={isSeekFallback ? "From Seek listing (weak signal)" : "Apollo-verified DM"}>
+            <span>{isSeekFallback ? "≈" : "✓"}</span>
+            <span className="truncate max-w-[110px]">{j.dm_name}</span>
+            {isSeekFallback && <span className="text-[10px] opacity-75">(listing)</span>}
           </span>
         );
       }
